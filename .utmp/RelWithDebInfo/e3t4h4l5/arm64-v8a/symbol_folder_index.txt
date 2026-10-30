@@ -1,0 +1,1 @@
+C:\Users\ThinkPad\WasteWiseAR\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\build\intermediates\cxx\RelWithDebInfo\e3t4h4l5\obj\arm64-v8a
