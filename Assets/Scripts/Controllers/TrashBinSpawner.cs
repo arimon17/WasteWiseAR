@@ -34,6 +34,14 @@ public class TrashBinSpawner : MonoBehaviour
 
     private readonly List<ARRaycastHit> hitResults = new List<ARRaycastHit>();
     private readonly GameObject[] spawnedBins = new GameObject[BinCount];
+    private readonly Transform[] binLids = new Transform[BinCount];
+
+    // Label kategori melayang di atas mulut tempat sampah (design.md cat colors).
+    private const float BinLabelOffsetY = 0.9f; // 0.5m di atas mulut tempat sampah (~0.4m)
+    private const float BinLabelHeight = 0.1f;
+    private static readonly Color OrganicLabelColor = new Color(0.18f, 0.49f, 0.2f);    // #2e7d32
+    private static readonly Color InorganicLabelColor = new Color(0.96f, 0.5f, 0.09f);  // #f57f17
+    private static readonly Color B3LabelColor = new Color(0.78f, 0.16f, 0.16f);        // #c62828
 
     public bool HasPlacedBins => HasAllBins();
 
@@ -86,28 +94,6 @@ public class TrashBinSpawner : MonoBehaviour
         return spawnedBins[index];
     }
 
-    public bool TryGetBinCategory(GameObject hitObject, out TrashBinCategory category)
-    {
-        Transform current = hitObject != null ? hitObject.transform : null;
-
-        while (current != null)
-        {
-            for (int i = 0; i < spawnedBins.Length; i++)
-            {
-                if (spawnedBins[i] != null && current.gameObject == spawnedBins[i])
-                {
-                    category = (TrashBinCategory)i;
-                    return true;
-                }
-            }
-
-            current = current.parent;
-        }
-
-        category = default;
-        return false;
-    }
-
     private void TryPlaceBins(Vector2 screenPosition)
     {
         if (raycastManager == null || !HasAllPrefabs())
@@ -147,6 +133,45 @@ public class TrashBinSpawner : MonoBehaviour
 
             spawnedBins[i] = Instantiate(GetPrefab(category), position, rotation);
             spawnedBins[i].name = GetBinName(category);
+            binLids[i] = spawnedBins[i].transform.Find("Lid");
+            AddBinLabel(spawnedBins[i], category);
+        }
+    }
+
+    public Transform GetLid(TrashBinCategory category)
+    {
+        int index = (int)category;
+        return index >= 0 && index < binLids.Length ? binLids[index] : null;
+    }
+
+    private static void AddBinLabel(GameObject bin, TrashBinCategory category)
+    {
+        FloatingLabel.Create(bin.transform, GetLabelText(category), BinLabelOffsetY, BinLabelHeight, GetLabelColor(category));
+    }
+
+    private static string GetLabelText(TrashBinCategory category)
+    {
+        switch (category)
+        {
+            case TrashBinCategory.Organik:
+                return "ORGANIK";
+            case TrashBinCategory.Anorganik:
+                return "ANORGANIK";
+            default:
+                return "B3";
+        }
+    }
+
+    private static Color GetLabelColor(TrashBinCategory category)
+    {
+        switch (category)
+        {
+            case TrashBinCategory.Organik:
+                return OrganicLabelColor;
+            case TrashBinCategory.Anorganik:
+                return InorganicLabelColor;
+            default:
+                return B3LabelColor;
         }
     }
 
@@ -172,6 +197,7 @@ public class TrashBinSpawner : MonoBehaviour
             }
 
             spawnedBins[i] = null;
+            binLids[i] = null;
         }
     }
 

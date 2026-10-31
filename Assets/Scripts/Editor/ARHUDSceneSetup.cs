@@ -24,9 +24,13 @@ public static class ARHUDSceneSetup
     private static readonly Color Primary = Hex("#1f8a5a");
     private static readonly Color TextMain = Hex("#f8fafc");
     private static readonly Color TextSub = Hex("#94a3b8");
+    private static readonly Color BorderColor = Hex("#334155");
 
     private const float ButtonHeight = 156f;   // 52px * 3
     private const float ButtonFontSize = 48f;  // 16pt * 3
+
+    // Margin atas Top Bar agar turun dari punch-hole notch (Tecno Pova 7). ~32dp.
+    private const float TopBarTopOffset = 96f;
 
     private static TMP_FontAsset font;
 
@@ -143,7 +147,7 @@ public static class ARHUDSceneSetup
         topBarRect.anchorMin = new Vector2(0f, 1f);
         topBarRect.anchorMax = new Vector2(1f, 1f);
         topBarRect.pivot = new Vector2(0.5f, 1f);
-        topBarRect.anchoredPosition = new Vector2(0f, -24f);
+        topBarRect.anchoredPosition = new Vector2(0f, -TopBarTopOffset);
         topBarRect.sizeDelta = new Vector2(-48f, 192f);
 
         Image topBarImage = topBar.AddComponent<Image>();
@@ -174,24 +178,32 @@ public static class ARHUDSceneSetup
         toast.color = SurfaceCard;
         ApplyRounded(toast, 16);
 
+        Outline toastBorder = element.feedbackPanel.AddComponent<Outline>();
+        toastBorder.effectColor = BorderColor;
+        toastBorder.effectDistance = new Vector2(2f, 2f);
+
         element.feedbackPanel.AddComponent<CanvasGroup>();
         element.feedbackFader = element.feedbackPanel.AddComponent<UIFadePanel>();
 
-        element.feedbackIndicator = NewUi("Indicator", element.feedbackPanel.transform).AddComponent<Image>();
+        // Badge pill (kapsul) di kiri atas; warnanya diatur ARHUDController saat runtime.
+        element.feedbackIndicator = NewUi("StatusBadge", element.feedbackPanel.transform).AddComponent<Image>();
         element.feedbackIndicator.color = Hex("#2e7d32");
-        RectTransform indicatorRect = element.feedbackIndicator.rectTransform;
-        indicatorRect.anchorMin = new Vector2(0f, 0f);
-        indicatorRect.anchorMax = new Vector2(0f, 1f);
-        indicatorRect.pivot = new Vector2(0f, 0.5f);
-        indicatorRect.anchoredPosition = new Vector2(24f, 0f);
-        indicatorRect.sizeDelta = new Vector2(36f, -48f);
+        element.feedbackIndicator.raycastTarget = false;
+        ApplyRounded(element.feedbackIndicator, 14);
+        RectTransform badgeRect = element.feedbackIndicator.rectTransform;
+        badgeRect.anchorMin = new Vector2(0f, 1f);
+        badgeRect.anchorMax = new Vector2(0f, 1f);
+        badgeRect.pivot = new Vector2(0f, 1f);
+        badgeRect.anchoredPosition = new Vector2(48f, -36f);
+        badgeRect.sizeDelta = new Vector2(280f, 84f);
 
-        element.feedbackStatus = CreateText("Status", element.feedbackPanel.transform, "BENAR", 60f, TextAlignmentOptions.TopLeft, TextMain);
+        element.feedbackStatus = CreateText("Status", element.feedbackIndicator.transform, "BENAR", 44f, TextAlignmentOptions.Center, Color.white);
         element.feedbackStatus.fontStyle = FontStyles.Bold;
-        StretchTop(element.feedbackStatus.rectTransform, 96f, 40f, 36f, 70f);
+        Stretch(element.feedbackStatus.rectTransform, 0f, 0f, 0f, 0f);
 
         element.feedbackExplanation = CreateText("Explanation", element.feedbackPanel.transform, "", 45f, TextAlignmentOptions.TopLeft, TextSub);
-        Stretch(element.feedbackExplanation.rectTransform, 96f, 40f, 130f, 30f);
+        element.feedbackExplanation.lineSpacing = -10f;
+        Stretch(element.feedbackExplanation.rectTransform, 48f, 48f, 140f, 32f);
         element.feedbackPanel.SetActive(false);
 
         // Session Result: App Card
@@ -309,6 +321,7 @@ public static class ARHUDSceneSetup
         text.alignment = alignment;
         text.color = color;
         text.raycastTarget = false;
+        text.extraPadding = true;
 
         if (font != null)
         {

@@ -49,20 +49,30 @@ public static class TrashBinPrefabCreator
             new Color(0.8f, 0.1f, 0.1f),
             litShader);
 
+        // Warna penutup/kaki netral (surface-card #1e293b) agar warna kategori tetap menonjol.
+        Material lidMaterial = CreateOrUpdateMaterial(
+            "Assets/Materials/Mat_BinLid.mat",
+            "Mat_BinLid",
+            new Color(0.12f, 0.16f, 0.23f),
+            litShader);
+
         GameObject organicPrefab = CreateBinPrefab(
             "OrganicBin",
             "Assets/Prefabs/Bins/OrganicBin.prefab",
-            greenMaterial);
+            greenMaterial,
+            lidMaterial);
 
         GameObject inorganicPrefab = CreateBinPrefab(
             "InorganicBin",
             "Assets/Prefabs/Bins/InorganicBin.prefab",
-            yellowMaterial);
+            yellowMaterial,
+            lidMaterial);
 
         GameObject b3Prefab = CreateBinPrefab(
             "B3Bin",
             "Assets/Prefabs/Bins/B3Bin.prefab",
-            redMaterial);
+            redMaterial,
+            lidMaterial);
 
         AssetDatabase.SaveAssets();
 
@@ -109,12 +119,14 @@ public static class TrashBinPrefabCreator
         }
 
         material.SetColor("_BaseColor", color);
+        material.SetFloat("_Smoothness", 0.1f); // matte finish
+        material.SetFloat("_Metallic", 0f);
         EditorUtility.SetDirty(material);
 
         return material;
     }
 
-    private static GameObject CreateBinPrefab(string prefabName, string prefabPath, Material material)
+    private static GameObject CreateBinPrefab(string prefabName, string prefabPath, Material bodyMaterial, Material lidMaterial)
     {
         GameObject root = new GameObject(prefabName);
 
@@ -123,26 +135,13 @@ public static class TrashBinPrefabCreator
         capsuleCollider.height = 0.4f;
         capsuleCollider.radius = 0.125f;
 
-        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        visual.name = "Visual";
-        visual.transform.SetParent(root.transform, false);
-        visual.transform.localPosition = new Vector3(0f, 0.2f, 0f);
-        visual.transform.localRotation = Quaternion.identity;
-        visual.transform.localScale = new Vector3(0.25f, 0.2f, 0.25f);
-
-        Collider visualCollider = visual.GetComponent<Collider>();
-
-        if (visualCollider != null)
-        {
-            Object.DestroyImmediate(visualCollider);
-        }
-
-        MeshRenderer meshRenderer = visual.GetComponent<MeshRenderer>();
-
-        if (meshRenderer != null)
-        {
-            meshRenderer.sharedMaterial = material;
-        }
+        // Profil tempat sampah low-poly: lis/kaki bawah, badan, cekungan, lis mulut, penutup, pegangan.
+        AddBinPart(root.transform, "Base", 0.15f, 0.03f, 0.015f, bodyMaterial);
+        AddBinPart(root.transform, "Body", 0.115f, 0.30f, 0.18f, bodyMaterial);
+        AddBinPart(root.transform, "Groove", 0.128f, 0.02f, 0.12f, lidMaterial);
+        AddBinPart(root.transform, "Rim", 0.15f, 0.04f, 0.35f, bodyMaterial);
+        AddBinPart(root.transform, "Lid", 0.155f, 0.03f, 0.385f, lidMaterial);
+        AddBinPart(root.transform, "Handle", 0.05f, 0.03f, 0.415f, lidMaterial);
 
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         Object.DestroyImmediate(root);
@@ -157,6 +156,32 @@ public static class TrashBinPrefabCreator
         }
 
         return prefab;
+    }
+
+    // Cylinder primitive: radius 0.5 & tinggi 2 pada skala 1.
+    private static void AddBinPart(Transform parent, string name, float radius, float height, float centerY, Material material)
+    {
+        GameObject part = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        part.name = name;
+        part.transform.SetParent(parent, false);
+        part.transform.localPosition = new Vector3(0f, centerY, 0f);
+        part.transform.localRotation = Quaternion.identity;
+        part.transform.localScale = new Vector3(radius * 2f, height * 0.5f, radius * 2f);
+
+        // Collider anak dibuang; root prefab sudah punya CapsuleCollider sebagai target tap.
+        Collider partCollider = part.GetComponent<Collider>();
+
+        if (partCollider != null)
+        {
+            Object.DestroyImmediate(partCollider);
+        }
+
+        MeshRenderer renderer = part.GetComponent<MeshRenderer>();
+
+        if (renderer != null)
+        {
+            renderer.sharedMaterial = material;
+        }
     }
 
     private static void AssignPrefabsToSpawner(

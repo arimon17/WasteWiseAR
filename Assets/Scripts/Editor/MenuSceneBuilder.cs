@@ -34,7 +34,13 @@ public static class MenuSceneBuilder
 
     private const float ButtonHeight = 156f;   // 52px * 3
     private const float ButtonFontSize = 48f;  // 16pt * 3
-    private const float CardPadding = 48f;     // 16px * 3
+
+    // Padding internal kartu katalog (design.md 3x): design 24/32px -> canvas 72/96.
+    private const float CardPadTop = 72f;
+    private const float CardPadBottom = 72f;
+    private const float CardPadLeft = 96f;
+    private const float CardPadRight = 96f;
+    private const float CatalogCardHeight = 360f;
 
     private static Color Hex(string hex)
     {
@@ -236,6 +242,7 @@ public static class MenuSceneBuilder
             "<b><color=#f8fafc>B3</color></b>\nBahan Berbahaya dan Beracun: limbah kimia/berbahaya seperti baterai, lampu, dan obat kedaluwarsa. Buang ke tempat khusus.";
 
         TextMeshProUGUI content = CreateText("Body", panel.transform, body, 45f, TextAlignmentOptions.TopLeft, TextSub);
+        content.lineSpacing = -10f;
         Stretch(content.rectTransform, 72f, 72f, 280f, 300f);
 
         Button close = CreateButton("BackButton", panel.transform, "Kembali", new Vector2(0f, 48f), new Vector2(0.5f, 0f), new Vector2(720f, ButtonHeight));
@@ -294,7 +301,7 @@ public static class MenuSceneBuilder
         GameObject row = NewUi("Item_" + entry.name, parent);
 
         LayoutElement element = row.AddComponent<LayoutElement>();
-        element.preferredHeight = 240f;
+        element.preferredHeight = CatalogCardHeight;
         element.flexibleWidth = 1f;
 
         Image card = row.AddComponent<Image>();
@@ -307,10 +314,18 @@ public static class MenuSceneBuilder
         border.effectDistance = new Vector2(2f, 2f);
 
         TextMeshProUGUI title = CreateText("Name", row.transform, $"{entry.name}  ({entry.category})", 48f, TextAlignmentOptions.TopLeft, TextMain);
-        StretchTop(title.rectTransform, CardPadding, CardPadding, CardPadding, 60f);
+        // Judul panjang dipaksa satu baris (auto-size lalu ellipsis) agar tidak menimpa deskripsi.
+        title.enableAutoSizing = true;
+        title.fontSizeMin = 32f;
+        title.fontSizeMax = 48f;
+        title.textWrappingMode = TextWrappingModes.NoWrap;
+        title.overflowMode = TextOverflowModes.Ellipsis;
+        StretchTop(title.rectTransform, CardPadLeft, CardPadRight, CardPadTop, 60f);
 
         TextMeshProUGUI description = CreateText("Description", row.transform, entry.description, 45f, TextAlignmentOptions.TopLeft, TextSub);
-        StretchTop(description.rectTransform, CardPadding, CardPadding, 120f, 90f);
+        description.lineSpacing = -10f;
+        float descriptionTop = CardPadTop + 84f;
+        StretchTop(description.rectTransform, CardPadLeft, CardPadRight, descriptionTop, CatalogCardHeight - descriptionTop - CardPadBottom);
     }
 
     private static void WireController(MainMenuController controller, Button play, Button catalog, Button info, Button catalogClose, Button infoClose, TMP_Text highScore, string arSceneName)
@@ -414,6 +429,7 @@ public static class MenuSceneBuilder
         text.alignment = alignment;
         text.color = color;
         text.raycastTarget = false;
+        text.extraPadding = true;
 
         if (font != null)
         {

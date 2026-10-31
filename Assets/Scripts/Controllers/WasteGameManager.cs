@@ -21,12 +21,14 @@ public class WasteGameManager : MonoBehaviour
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorId = Shader.PropertyToID("_Color");
 
-    private static readonly Color ItemColor = new Color(0.82f, 0.78f, 0.68f);
     private static readonly Color CorrectColor = new Color(0f, 0.8f, 0.15f);
     private static readonly Color WrongColor = new Color(0.9f, 0.1f, 0.1f);
 
     private const float BlinkInterval = 0.15f;
     private const float MaxRayDistance = 10f;
+    private const float DropRadius = 0.3f; // jarak horizontal ke tempat sampah agar dianggap di atasnya
+    private const float ReturnSpeed = 8f;  // laju Lerp kembali ke titik melayang awal
+    private const float LidSpeed = 6f;     // laju animasi buka/tutup penutup tempat sampah
 
     [Header("Sesi")]
     [SerializeField, Min(1)] private int sessionQuota = 8;
@@ -36,6 +38,8 @@ public class WasteGameManager : MonoBehaviour
     [SerializeField] private Transform spawnAnchor;
     [SerializeField, Min(0.1f)] private float spawnDistance = 1.2f;
     [SerializeField, Min(0.01f)] private float itemScale = 0.15f;
+    [SerializeField, Min(0f)] private float spawnHeightOffset = 0.35f;  // lebih tinggi dari pusat
+    [SerializeField, Min(0f)] private float spawnForwardOffset = 0.15f; // maju ke arah kamera
 
     [Header("Referensi AR")]
     [SerializeField] private TrashBinSpawner binSpawner;
@@ -49,12 +53,20 @@ public class WasteGameManager : MonoBehaviour
 
     private readonly List<WasteDefinition> pool = new List<WasteDefinition>();
     private WasteItem activeItem;
-    private WasteItem selectedItem;
     private int sortedCount;
     private int wrongCount;
     private int lastPoolIndex = -1;
     private bool sessionRunning;
     private bool sessionFinished;
+
+    // Drag & drop
+    private WasteItem movingItem;   // item yang sedang di-drag atau dikembalikan
+    private bool dragging;
+    private bool returning;
+    private Plane dragPlane;
+    private Vector3 itemHome;       // titik melayang awal item aktif
+    private TrashBinSpawner.TrashBinCategory? hoveredBin;
+    private readonly float[] lidOpen = new float[3];
 
     private Coroutine feedbackRoutine;
     private MeshRenderer[] feedbackRenderers;
@@ -88,10 +100,12 @@ public class WasteGameManager : MonoBehaviour
             StartSession();
         }
 
-        if (sessionRunning && TryGetTapPosition(out Vector2 screenPosition))
+        if (sessionRunning)
         {
-            HandleTap(screenPosition);
+            HandlePointer();
         }
+
+        AnimateLids();
     }
 
     public void StartSession()
@@ -113,57 +127,203 @@ public class WasteGameManager : MonoBehaviour
         sessionRunning = true;
         sortedCount = 0;
         wrongCount = 0;
+        movingItem = null;
+        dragging = false;
+        returning = false;
+        hoveredBin = null;
         SpawnNext();
     }
 
-    private void HandleTap(Vector2 screenPosition)
+    private void HandlePointer()
     {
+        PointerState state = GetPointerState(out Vector2 screenPosition);
+
+        if (returning)
+        {
+            if (state == PointerState.Down && TryPickItem(screenPosition, out WasteItem regrabbed))
+            {
+                BeginDrag(regrabbed);
+                return;
+            }
+
+            StepReturn();
+            return;
+        }
+
+        if (!dragging)
+        {
+            if (state == PointerState.Down && TryPickItem(screenPosition, out WasteItem picked))
+            {
+                BeginDrag(picked);
+            }
+
+            return;
+        }
+
+        if (state == PointerState.Held || state == PointerState.Down)
+        {
+            MoveDragged(screenPosition);
+        }
+        else if (state == PointerState.Up || state == PointerState.None)
+        {
+            DropDragged();
+        }
+    }
+
+    private bool TryPickItem(Vector2 screenPosition, out WasteItem item)
+    {
+        item = null;
+
         if (arCamera == null)
         {
-            return;
+            return false;
         }
 
         Ray ray = arCamera.ScreenPointToRay(screenPosition);
 
         if (!Physics.Raycast(ray, out RaycastHit hit, MaxRayDistance))
         {
+            return false;
+        }
+
+        item = hit.collider.GetComponentInParent<WasteItem>();
+        return item != null;
+    }
+
+    private void BeginDrag(WasteItem item)
+    {
+        movingItem = item;
+        dragging = true;
+        returning = false;
+        // Bidang horizontal di ketinggian item agar gerakan jari terpetakan ke area lantai AR.
+        dragPlane = new Plane(Vector3.up, item.transform.position);
+        Debug.Log($"[WasteWise] Sampah diangkat: {item.ItemName}. Geser ke tempat sampah lalu lepas.");
+    }
+
+    private void MoveDragged(Vector2 screenPosition)
+    {
+        if (movingItem == null || arCamera == null)
+        {
             return;
         }
 
-        WasteItem item = hit.collider.GetComponentInParent<WasteItem>();
+        Ray ray = arCamera.ScreenPointToRay(screenPosition);
 
-        if (item != null)
+        if (dragPlane.Raycast(ray, out float distance))
         {
-            SelectItem(item);
+            movingItem.transform.position = ray.GetPoint(distance);
+        }
+
+        hoveredBin = FindBinNear(movingItem.transform.position);
+    }
+
+    private TrashBinSpawner.TrashBinCategory? FindBinNear(Vector3 position)
+    {
+        if (binSpawner == null)
+        {
+            return null;
+        }
+
+        TrashBinSpawner.TrashBinCategory? nearest = null;
+        float best = DropRadius;
+
+        for (int i = 0; i < lidOpen.Length; i++)
+        {
+            TrashBinSpawner.TrashBinCategory category = (TrashBinSpawner.TrashBinCategory)i;
+            GameObject bin = binSpawner.GetBin(category);
+
+            if (bin == null)
+            {
+                continue;
+            }
+
+            Vector3 delta = bin.transform.position - position;
+            delta.y = 0f; // jarak horizontal (item melayang di atas mulut tempat sampah)
+            float distance = delta.magnitude;
+
+            if (distance < best)
+            {
+                best = distance;
+                nearest = category;
+            }
+        }
+
+        return nearest;
+    }
+
+    private void DropDragged()
+    {
+        dragging = false;
+
+        if (movingItem == null)
+        {
+            hoveredBin = null;
             return;
         }
 
-        if (binSpawner != null &&
-            binSpawner.TryGetBinCategory(hit.collider.gameObject, out TrashBinSpawner.TrashBinCategory binCategory))
+        if (hoveredBin.HasValue && binSpawner != null)
         {
-            Evaluate(binCategory);
+            TrashBinSpawner.TrashBinCategory bin = hoveredBin.Value;
+            hoveredBin = null;
+            Evaluate(movingItem, bin);
+            return;
+        }
+
+        // Lepas di luar tempat sampah: kembalikan ke titik melayang semula via Lerp.
+        returning = true;
+    }
+
+    private void StepReturn()
+    {
+        if (movingItem == null)
+        {
+            returning = false;
+            return;
+        }
+
+        Transform target = movingItem.transform;
+        target.position = Vector3.Lerp(target.position, itemHome, Time.deltaTime * ReturnSpeed);
+
+        if (Vector3.Distance(target.position, itemHome) < 0.01f)
+        {
+            target.position = itemHome;
+            returning = false;
         }
     }
 
-    private void SelectItem(WasteItem item)
+    private void AnimateLids()
     {
-        selectedItem = item;
-        Debug.Log($"[WasteWise] Sampah dipilih: {item.ItemName}. Sekarang tap tempat sampah tujuan.");
-    }
-
-    private void Evaluate(TrashBinSpawner.TrashBinCategory binCategory)
-    {
-        if (selectedItem == null)
+        if (binSpawner == null)
         {
-            Debug.Log("[WasteWise] Tap objek sampah dulu sebelum memilih tempat sampah.");
             return;
         }
 
-        WasteItem item = selectedItem;
-        selectedItem = null;
+        for (int i = 0; i < lidOpen.Length; i++)
+        {
+            TrashBinSpawner.TrashBinCategory category = (TrashBinSpawner.TrashBinCategory)i;
+            Transform lid = binSpawner.GetLid(category);
+
+            if (lid == null)
+            {
+                continue;
+            }
+
+            bool open = dragging && hoveredBin.HasValue && hoveredBin.Value == category;
+            lidOpen[i] = Mathf.MoveTowards(lidOpen[i], open ? 1f : 0f, Time.deltaTime * LidSpeed);
+            lid.localRotation = Quaternion.Euler(-45f * lidOpen[i], 0f, 0f);
+        }
+    }
+
+    private void Evaluate(WasteItem item, TrashBinSpawner.TrashBinCategory binCategory)
+    {
+        if (item == null)
+        {
+            movingItem = null;
+            return;
+        }
 
         bool correct = (int)item.CorrectCategory == (int)binCategory;
-        GameObject bin = binSpawner.GetBin(binCategory);
+        GameObject bin = binSpawner != null ? binSpawner.GetBin(binCategory) : null;
 
         if (bin != null)
         {
@@ -177,11 +337,19 @@ public class WasteGameManager : MonoBehaviour
         if (!correct)
         {
             wrongCount++;
+            // Salah: sampah kembali melayang agar bisa dicoba lagi.
+            returning = true;
             return;
         }
 
         sortedCount++;
-        activeItem = null;
+
+        if (activeItem == item)
+        {
+            activeItem = null;
+        }
+
+        movingItem = null;
         Destroy(item.gameObject);
 
         if (sortedCount >= sessionQuota)
@@ -208,18 +376,28 @@ public class WasteGameManager : MonoBehaviour
         }
 
         activeItem = CreateWasteItem(PickDefinition());
+        itemHome = activeItem.transform.position;
+        movingItem = null;
+        dragging = false;
+        returning = false;
+        hoveredBin = null;
     }
 
     private WasteItem CreateWasteItem(WasteDefinition definition)
     {
-        GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        go.name = "WasteItem";
+        GameObject go = new GameObject("WasteItem");
         go.transform.SetPositionAndRotation(GetSpawnPosition(), GetSpawnRotation());
         go.transform.localScale = Vector3.one * itemScale;
 
+        // Collider root menggantikan collider kubus placeholder sebagai target tap.
+        BoxCollider collider = go.AddComponent<BoxCollider>();
+        collider.center = new Vector3(0f, 0.05f, 0f);
+        collider.size = new Vector3(0.95f, 0.95f, 0.95f);
+
         WasteItem item = go.AddComponent<WasteItem>();
         item.Configure(definition.itemName, definition.category, definition.explanation);
-        ApplyColor(go.GetComponent<MeshRenderer>(), ItemColor);
+
+        WasteModelBuilder.Build(go.transform, definition.itemName, definition.category);
 
         return item;
     }
@@ -235,7 +413,10 @@ public class WasteGameManager : MonoBehaviour
             activeItem = null;
         }
 
-        selectedItem = null;
+        movingItem = null;
+        dragging = false;
+        returning = false;
+        hoveredBin = null;
 
         OnSessionCompleted?.Invoke(sortedCount, sortedCount + wrongCount);
         Debug.Log($"[WasteWise] Sesi latihan selesai. Benar: {sortedCount}, Salah: {wrongCount}.");
@@ -400,32 +581,41 @@ public class WasteGameManager : MonoBehaviour
         });
     }
 
-    private void ApplyColor(Renderer renderer, Color color)
-    {
-        if (renderer == null)
-        {
-            return;
-        }
-
-        MaterialPropertyBlock block = new MaterialPropertyBlock();
-        block.SetColor(BaseColorId, color);
-        block.SetColor(ColorId, color);
-        renderer.SetPropertyBlock(block);
-    }
-
     private Vector3 GetSpawnPosition()
     {
+        Vector3 position;
+
         if (spawnAnchor != null)
         {
-            return spawnAnchor.position;
+            position = spawnAnchor.position;
+        }
+        else if (arCamera == null)
+        {
+            position = transform.position + Vector3.up * 0.2f;
+        }
+        else
+        {
+            position = arCamera.transform.position + arCamera.transform.forward * spawnDistance;
         }
 
+        // Angkat & majukan sedikit agar sampah tidak tenggelam di dalam mesh tempat sampah.
+        position += Vector3.up * spawnHeightOffset;
+        position -= GetHorizontalForward() * spawnForwardOffset;
+
+        return position;
+    }
+
+    private Vector3 GetHorizontalForward()
+    {
         if (arCamera == null)
         {
-            return transform.position + Vector3.up * 0.2f;
+            return Vector3.forward;
         }
 
-        return arCamera.transform.position + arCamera.transform.forward * spawnDistance;
+        Vector3 forward = arCamera.transform.forward;
+        forward.y = 0f;
+
+        return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
     }
 
     private Quaternion GetSpawnRotation()
@@ -472,43 +662,103 @@ public class WasteGameManager : MonoBehaviour
         }
     }
 
-    private bool TryGetTapPosition(out Vector2 screenPosition)
+    private enum PointerState
     {
+        None,
+        Down,
+        Held,
+        Up
+    }
+
+    private static PointerState GetPointerState(out Vector2 position)
+    {
+        position = default;
+
 #if ENABLE_INPUT_SYSTEM
         Touchscreen touchscreen = Touchscreen.current;
 
-        if (touchscreen != null && touchscreen.primaryTouch.press.wasPressedThisFrame)
+        if (touchscreen != null)
         {
-            screenPosition = touchscreen.primaryTouch.position.ReadValue();
-            return true;
+            var touch = touchscreen.primaryTouch;
+
+            if (touch.press.wasPressedThisFrame)
+            {
+                position = touch.position.ReadValue();
+                return PointerState.Down;
+            }
+
+            if (touch.press.isPressed)
+            {
+                position = touch.position.ReadValue();
+                return PointerState.Held;
+            }
+
+            if (touch.press.wasReleasedThisFrame)
+            {
+                position = touch.position.ReadValue();
+                return PointerState.Up;
+            }
         }
 
         Mouse mouse = Mouse.current;
 
-        if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+        if (mouse != null)
         {
-            screenPosition = mouse.position.ReadValue();
-            return true;
+            if (mouse.leftButton.wasPressedThisFrame)
+            {
+                position = mouse.position.ReadValue();
+                return PointerState.Down;
+            }
+
+            if (mouse.leftButton.isPressed)
+            {
+                position = mouse.position.ReadValue();
+                return PointerState.Held;
+            }
+
+            if (mouse.leftButton.wasReleasedThisFrame)
+            {
+                position = mouse.position.ReadValue();
+                return PointerState.Up;
+            }
         }
 #else
         if (Input.touchCount > 0)
         {
             UnityEngine.Touch touch = Input.GetTouch(0);
+            position = touch.position;
 
             if (touch.phase == UnityEngine.TouchPhase.Began)
             {
-                screenPosition = touch.position;
-                return true;
+                return PointerState.Down;
+            }
+
+            if (touch.phase == UnityEngine.TouchPhase.Moved || touch.phase == UnityEngine.TouchPhase.Stationary)
+            {
+                return PointerState.Held;
+            }
+
+            if (touch.phase == UnityEngine.TouchPhase.Ended || touch.phase == UnityEngine.TouchPhase.Canceled)
+            {
+                return PointerState.Up;
             }
         }
-
-        if (Input.GetMouseButtonDown(0))
+        else if (Input.GetMouseButtonDown(0))
         {
-            screenPosition = Input.mousePosition;
-            return true;
+            position = Input.mousePosition;
+            return PointerState.Down;
+        }
+        else if (Input.GetMouseButton(0))
+        {
+            position = Input.mousePosition;
+            return PointerState.Held;
+        }
+        else if (Input.GetMouseButtonUp(0))
+        {
+            position = Input.mousePosition;
+            return PointerState.Up;
         }
 #endif
-        screenPosition = default;
-        return false;
+        return PointerState.None;
     }
 }
