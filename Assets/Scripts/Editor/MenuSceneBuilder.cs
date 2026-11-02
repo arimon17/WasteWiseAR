@@ -27,7 +27,8 @@ public static class MenuSceneBuilder
     private static readonly Color BgApp = Hex("#0f172a");
     private static readonly Color SurfaceCard = Hex("#1e293b");
     private static readonly Color SurfaceOverlay = Hex("#0f172a");
-    private static readonly Color Primary = Hex("#1f8a5a");
+    private static readonly Color Primary = Hex("#10b981");
+    private static readonly Color AccentGold = Hex("#fbbf24");
     private static readonly Color TextMain = Hex("#f8fafc");
     private static readonly Color TextSub = Hex("#94a3b8");
     private static readonly Color BorderColor = Hex("#334155");
@@ -202,27 +203,28 @@ public static class MenuSceneBuilder
     {
         GameObject panel = CreatePanel("MainMenuPanel", root, BgApp);
 
-        TextMeshProUGUI title = CreateText("Title", panel.transform, "WasteWise AR", 110f, TextAlignmentOptions.Center, TextMain);
-        SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -260f), new Vector2(960f, 180f));
+        TextMeshProUGUI title = CreateText("Title", panel.transform, "WasteWise AR", 100f, TextAlignmentOptions.Center, TextMain);
+        title.fontStyle = FontStyles.Bold;
+        SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -120f), new Vector2(960f, 140f));
 
-        highScoreText = CreateText("HighScore", panel.transform, "Skor Terbaik: 0", 45f, TextAlignmentOptions.Center, TextSub);
-        SetRect(highScoreText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -450f), new Vector2(700f, 80f));
+        TextMeshProUGUI subtitle = CreateText("Subtitle", panel.transform, "Aplikasi Edukasi Pemilahan Sampah Interaktif", 42f, TextAlignmentOptions.Center, TextSub);
+        SetRect(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(960f, 80f));
 
-        playButton = CreateButton("PlayButton", panel.transform, "Mulai Latihan", new Vector2(0f, 100f));
-        catalogButton = CreateButton("CatalogButton", panel.transform, "Katalog Sampah", new Vector2(0f, -80f));
-        infoButton = CreateButton("InfoButton", panel.transform, "Info Kategori", new Vector2(0f, -260f));
+        highScoreText = CreateStatCard(panel.transform);
+
+        playButton = CreateButton("PlayButton", panel.transform, "Mulai Latihan AR", new Vector2(0f, 160f));
+        catalogButton = CreateOutlinedButton("CatalogButton", panel.transform, "Katalog Sampah", new Vector2(0f, -40f));
+        infoButton = CreateOutlinedButton("InfoButton", panel.transform, "Info Kategori", new Vector2(0f, -240f));
     }
 
     private static Button BuildCatalogPanel(Transform root)
     {
         GameObject panel = CreatePanel("CatalogPanel", root, SurfaceOverlay);
 
-        TextMeshProUGUI title = CreateText("Title", panel.transform, "Katalog Sampah", 84f, TextAlignmentOptions.Center, TextMain);
-        SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -80f), new Vector2(960f, 140f));
+        Button close = CreateBackButton("BackButton", panel.transform, "← Katalog Sampah");
 
         CreateScrollView(panel.transform);
 
-        Button close = CreateButton("BackButton", panel.transform, "Kembali", new Vector2(0f, 48f), new Vector2(0.5f, 0f), new Vector2(720f, ButtonHeight));
         panel.AddComponent<CanvasGroup>();
         panel.AddComponent<UIFadePanel>();
         panel.SetActive(false);
@@ -233,19 +235,12 @@ public static class MenuSceneBuilder
     {
         GameObject panel = CreatePanel("InfoPanel", root, SurfaceOverlay);
 
-        TextMeshProUGUI title = CreateText("Title", panel.transform, "Panduan Kategori Sampah", 76f, TextAlignmentOptions.Center, TextMain);
-        SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -80f), new Vector2(1000f, 140f));
+        Button close = CreateBackButton("BackButton", panel.transform, "← Panduan Kategori");
 
-        const string body =
-            "<b><color=#f8fafc>ORGANIK</color></b>\nSampah mudah terurai (hayati) dari sisa makhluk hidup - sisa makanan, daun, kulit buah. Dapat dijadikan kompos.\n\n" +
-            "<b><color=#f8fafc>ANORGANIK</color></b>\nSampah sulit terurai namun dapat didaur ulang - plastik, kertas, kaleng, kardus, botol.\n\n" +
-            "<b><color=#f8fafc>B3</color></b>\nBahan Berbahaya dan Beracun: limbah kimia/berbahaya seperti baterai, lampu, dan obat kedaluwarsa. Buang ke tempat khusus.";
+        BuildCategoryCard(panel.transform, "ORGANIK", "Sampah mudah terurai dari sisa makhluk hidup: sisa makanan, daun, dan kulit buah. Dapat dijadikan kompos.", Hex("#2e7d32"), -180f);
+        BuildCategoryCard(panel.transform, "ANORGANIK", "Sampah sulit terurai namun dapat didaur ulang: plastik, kertas, kaleng, kardus, dan botol.", Hex("#fbc02d"), -560f);
+        BuildCategoryCard(panel.transform, "B3", "Bahan Berbahaya dan Beracun: limbah kimia seperti baterai, lampu, dan obat kedaluwarsa.", Hex("#c62828"), -940f);
 
-        TextMeshProUGUI content = CreateText("Body", panel.transform, body, 45f, TextAlignmentOptions.TopLeft, TextSub);
-        content.lineSpacing = -10f;
-        Stretch(content.rectTransform, 72f, 72f, 280f, 300f);
-
-        Button close = CreateButton("BackButton", panel.transform, "Kembali", new Vector2(0f, 48f), new Vector2(0.5f, 0f), new Vector2(720f, ButtonHeight));
         panel.AddComponent<CanvasGroup>();
         panel.AddComponent<UIFadePanel>();
         panel.SetActive(false);
@@ -255,7 +250,7 @@ public static class MenuSceneBuilder
     private static void CreateScrollView(Transform parent)
     {
         GameObject scrollObject = NewUi("ScrollView", parent);
-        Stretch(scrollObject.GetComponent<RectTransform>(), 60f, 60f, 280f, 224f);
+        Stretch(scrollObject.GetComponent<RectTransform>(), 60f, 60f, 200f, 200f);
 
         ScrollRect scrollRect = scrollObject.AddComponent<ScrollRect>();
         scrollRect.horizontal = false;
@@ -313,14 +308,21 @@ public static class MenuSceneBuilder
         border.effectColor = BorderColor;
         border.effectDistance = new Vector2(2f, 2f);
 
-        TextMeshProUGUI title = CreateText("Name", row.transform, $"{entry.name}  ({entry.category})", 48f, TextAlignmentOptions.TopLeft, TextMain);
-        // Judul panjang dipaksa satu baris (auto-size lalu ellipsis) agar tidak menimpa deskripsi.
+        TextMeshProUGUI title = CreateText("Name", row.transform, entry.name, 48f, TextAlignmentOptions.TopLeft, TextMain);
+        // Judul panjang dipaksa satu baris (auto-size lalu ellipsis) agar tidak menimpa chip kategori.
         title.enableAutoSizing = true;
         title.fontSizeMin = 32f;
         title.fontSizeMax = 48f;
         title.textWrappingMode = TextWrappingModes.NoWrap;
         title.overflowMode = TextOverflowModes.Ellipsis;
-        StretchTop(title.rectTransform, CardPadLeft, CardPadRight, CardPadTop, 60f);
+        RectTransform titleRect = title.rectTransform;
+        titleRect.anchorMin = new Vector2(0f, 1f);
+        titleRect.anchorMax = new Vector2(0f, 1f);
+        titleRect.pivot = new Vector2(0f, 1f);
+        titleRect.anchoredPosition = new Vector2(CardPadLeft, -CardPadTop);
+        titleRect.sizeDelta = new Vector2(500f, 60f);
+
+        CreateCategoryChip(row.transform, entry.category);
 
         TextMeshProUGUI description = CreateText("Description", row.transform, entry.description, 45f, TextAlignmentOptions.TopLeft, TextSub);
         description.lineSpacing = -10f;
@@ -400,7 +402,7 @@ public static class MenuSceneBuilder
 
         Image image = buttonObject.AddComponent<Image>();
         image.color = Primary;
-        image.sprite = UISpriteGenerator.GetRounded(16);
+        image.sprite = UISpriteGenerator.GetRounded(36);
         image.type = Image.Type.Sliced;
 
         Button button = buttonObject.AddComponent<Button>();
@@ -409,7 +411,7 @@ public static class MenuSceneBuilder
         ColorBlock colors = button.colors;
         colors.normalColor = Color.white;
         colors.highlightedColor = new Color(0.92f, 0.96f, 0.94f);
-        colors.pressedColor = Hex("#156340");
+        colors.pressedColor = Hex("#059669");
         colors.selectedColor = Color.white;
         button.colors = colors;
 
@@ -418,6 +420,162 @@ public static class MenuSceneBuilder
         Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
 
         return button;
+    }
+
+    private static Button CreateOutlinedButton(string name, Transform parent, string label, Vector2 position)
+    {
+        GameObject buttonObject = NewUi(name, parent);
+        SetRect(buttonObject.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), position, new Vector2(720f, ButtonHeight));
+
+        Image image = buttonObject.AddComponent<Image>();
+        image.color = SurfaceCard;
+        image.sprite = UISpriteGenerator.GetRounded(36);
+        image.type = Image.Type.Sliced;
+
+        Outline border = buttonObject.AddComponent<Outline>();
+        border.effectColor = Primary;
+        border.effectDistance = new Vector2(2f, 2f);
+
+        Button button = buttonObject.AddComponent<Button>();
+        button.targetGraphic = image;
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.92f, 0.96f, 0.94f);
+        colors.pressedColor = Hex("#134e4a");
+        colors.selectedColor = Color.white;
+        button.colors = colors;
+
+        TextMeshProUGUI text = CreateText("Label", buttonObject.transform, label, ButtonFontSize, TextAlignmentOptions.Center, TextMain);
+        text.fontStyle = FontStyles.Bold;
+        Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
+
+        return button;
+    }
+
+    private static Button CreateBackButton(string name, Transform parent, string label)
+    {
+        GameObject buttonObject = NewUi(name, parent);
+        SetRect(buttonObject.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(48f, -32f), new Vector2(560f, 100f));
+
+        Image image = buttonObject.AddComponent<Image>();
+        image.color = SurfaceCard;
+        image.sprite = UISpriteGenerator.GetRounded(16);
+        image.type = Image.Type.Sliced;
+
+        Outline border = buttonObject.AddComponent<Outline>();
+        border.effectColor = BorderColor;
+        border.effectDistance = new Vector2(2f, 2f);
+
+        Button button = buttonObject.AddComponent<Button>();
+        button.targetGraphic = image;
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.92f, 0.96f, 0.94f);
+        colors.pressedColor = Hex("#334155");
+        colors.selectedColor = Color.white;
+        button.colors = colors;
+
+        TextMeshProUGUI text = CreateText("Label", buttonObject.transform, label, 45f, TextAlignmentOptions.Center, TextMain);
+        text.fontStyle = FontStyles.Bold;
+        Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
+
+        return button;
+    }
+
+    private static TextMeshProUGUI CreateStatCard(Transform parent)
+    {
+        GameObject card = NewUi("StatCard", parent);
+        SetRect(card.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -400f), new Vector2(960f, 240f));
+
+        Image background = card.AddComponent<Image>();
+        background.color = SurfaceCard;
+        background.sprite = UISpriteGenerator.GetRounded(16);
+        background.type = Image.Type.Sliced;
+
+        Outline border = card.AddComponent<Outline>();
+        border.effectColor = BorderColor;
+        border.effectDistance = new Vector2(2f, 2f);
+
+        TextMeshProUGUI label = CreateText("Label", card.transform, "Skor Terbaik", 42f, TextAlignmentOptions.Center, TextSub);
+        SetRect(label.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -30f), new Vector2(800f, 60f));
+
+        TextMeshProUGUI value = CreateText("Value", card.transform, "0", 80f, TextAlignmentOptions.Center, AccentGold);
+        value.fontStyle = FontStyles.Bold;
+        SetRect(value.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(800f, 110f));
+
+        return value;
+    }
+
+    private static void BuildCategoryCard(Transform parent, string title, string description, Color accent, float top)
+    {
+        GameObject card = NewUi("Card_" + title, parent);
+        SetRect(card.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, top), new Vector2(920f, 340f));
+
+        Image background = card.AddComponent<Image>();
+        background.color = SurfaceCard;
+        background.sprite = UISpriteGenerator.GetRounded(16);
+        background.type = Image.Type.Sliced;
+
+        Outline border = card.AddComponent<Outline>();
+        border.effectColor = BorderColor;
+        border.effectDistance = new Vector2(2f, 2f);
+
+        GameObject accentBar = NewUi("Accent", card.transform);
+        RectTransform accentRect = accentBar.GetComponent<RectTransform>();
+        accentRect.anchorMin = new Vector2(0f, 0f);
+        accentRect.anchorMax = new Vector2(0f, 1f);
+        accentRect.pivot = new Vector2(0f, 0.5f);
+        accentRect.anchoredPosition = Vector2.zero;
+        accentRect.sizeDelta = new Vector2(24f, 0f);
+        Image accentImage = accentBar.AddComponent<Image>();
+        accentImage.color = accent;
+        accentImage.raycastTarget = false;
+
+        TextMeshProUGUI titleText = CreateText("Title", card.transform, title, 60f, TextAlignmentOptions.TopLeft, TextMain);
+        titleText.fontStyle = FontStyles.Bold;
+        StretchTop(titleText.rectTransform, 96f, 60f, 36f, 80f);
+
+        TextMeshProUGUI descriptionText = CreateText("Description", card.transform, description, 45f, TextAlignmentOptions.TopLeft, TextSub);
+        descriptionText.lineSpacing = -10f;
+        StretchTop(descriptionText.rectTransform, 96f, 60f, 140f, 160f);
+    }
+
+    private static void CreateCategoryChip(Transform parent, string category)
+    {
+        GameObject chip = NewUi("CategoryChip", parent);
+        RectTransform chipRect = chip.GetComponent<RectTransform>();
+        chipRect.anchorMin = new Vector2(1f, 1f);
+        chipRect.anchorMax = new Vector2(1f, 1f);
+        chipRect.pivot = new Vector2(1f, 1f);
+        chipRect.anchoredPosition = new Vector2(-CardPadRight, -CardPadTop);
+        chipRect.sizeDelta = new Vector2(220f, 60f);
+
+        Image chipImage = chip.AddComponent<Image>();
+        chipImage.color = CategoryColor(category);
+        chipImage.sprite = UISpriteGenerator.GetRounded(14);
+        chipImage.type = Image.Type.Sliced;
+
+        TextMeshProUGUI label = CreateText("Label", chip.transform, category, 36f, TextAlignmentOptions.Center, CategoryTextColor(category));
+        label.fontStyle = FontStyles.Bold;
+        Stretch(label.rectTransform, 0f, 0f, 0f, 0f);
+    }
+
+    private static Color CategoryColor(string category)
+    {
+        switch (category)
+        {
+            case "Organik": return Hex("#22c55e");
+            case "Anorganik": return Hex("#facc15");
+            case "B3": return Hex("#ef4444");
+            default: return TextSub;
+        }
+    }
+
+    private static Color CategoryTextColor(string category)
+    {
+        return category == "Anorganik" ? SurfaceCard : Color.white;
     }
 
     private static TextMeshProUGUI CreateText(string name, Transform parent, string content, float fontSize, TextAlignmentOptions alignment, Color color)

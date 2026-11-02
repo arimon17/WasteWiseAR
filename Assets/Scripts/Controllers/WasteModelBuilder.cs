@@ -5,8 +5,8 @@ using UnityEngine;
 // winding/normal dijamin benar di perangkat tanpa bisa dirender-uji di sini.
 public static class WasteModelBuilder
 {
-    private const float LabelWorldHeight = 0.06f;
-    private const float LabelWorldOffset = 0.18f; // tepat di atas mesh sampah (mesh ~0.07m)
+    private const float LabelWorldOffset = 0.28f; // di atas mesh sampah agar nameplate tegak & jelas
+    private const float NameplateFontSize = 1.5f;
 
     // Dipanggil WasteGameManager: pasang visual + nameplate di bawah root item (root diskala 0.15).
     public static void Build(Transform item, string itemName, TrashCategory category)
@@ -106,7 +106,7 @@ public static class WasteModelBuilder
 
     private static void BuildLabel(Transform item, string itemName)
     {
-        FloatingLabel.Create(item, itemName, LabelWorldOffset, LabelWorldHeight, Color.white);
+        FloatingLabel.Create(item, itemName, new Vector3(0f, LabelWorldOffset, 0f), NameplateFontSize, Color.white);
     }
 
     private static GameObject Part(PrimitiveType type, Transform parent, Vector3 position, Vector3 scale, string materialKey)

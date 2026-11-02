@@ -119,8 +119,16 @@ public class ARHUDController : MonoBehaviour
             wrongCount++;
         }
 
+        // Sinkronkan top bar dengan item yang baru saja dinilai (jangan biarkan nama lama).
+        lastItemName = item != null ? item.ItemName : string.Empty;
+
+        if (itemNameText != null)
+        {
+            itemNameText.text = string.IsNullOrEmpty(lastItemName) ? "Sampah: -" : $"Sampah: {lastItemName}";
+        }
+
         RefreshTopBar();
-        ShowFeedback(correct, explanation);
+        ShowFeedback(item, correct, explanation);
     }
 
     private void HandleSessionCompleted(int correct, int total)
@@ -148,7 +156,7 @@ public class ARHUDController : MonoBehaviour
         ShowPanel(resultPanel, resultFader);
     }
 
-    private void ShowFeedback(bool correct, string explanation)
+    private void ShowFeedback(WasteItem item, bool correct, string explanation)
     {
         if (feedbackPanel == null)
         {
@@ -165,9 +173,15 @@ public class ARHUDController : MonoBehaviour
             feedbackStatusText.text = correct ? "BENAR" : "SALAH";
         }
 
+        // Selalu tulis ulang penjelasan dari item terbaru (bukan teks yang tersisa dari sebelumnya).
         if (feedbackExplanationText != null)
         {
-            feedbackExplanationText.text = explanation;
+            string freshResolution = !string.IsNullOrEmpty(explanation)
+                ? explanation
+                : (item != null ? item.Explanation : string.Empty);
+
+            feedbackExplanationText.text = freshResolution;
+            feedbackExplanationText.ForceMeshUpdate();
         }
 
         ShowPanel(feedbackPanel, feedbackFader);

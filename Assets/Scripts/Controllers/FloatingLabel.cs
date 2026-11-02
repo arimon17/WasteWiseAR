@@ -1,47 +1,91 @@
 using TMPro;
 using UnityEngine;
 
-// Label 3D TextMeshPro yang melayang & selalu menghadap kamera (dipakai sampah & tempat sampah).
+// Label 3D TextMeshPro: nameplate melayang (billboard) dan teks statis yang menempel pada geometri.
 public static class FloatingLabel
 {
-    public static GameObject Create(Transform parent, string text, float worldOffsetY, float worldHeight, Color color)
-    {
-        TMP_FontAsset fontAsset = TMP_Settings.defaultFontAsset;
+    // Skala nameplate melayang agar teks sampah tetap kecil (lebar ~<= 10cm).
+    private const float WorldUnitsPerFontSize = 0.03f;
+    private static readonly Color OutlineColor = new Color(0.05f, 0.05f, 0.07f);
 
-        if (fontAsset == null || string.IsNullOrEmpty(text))
+    // Nameplate melayang di atas sampah; selalu menghadap kamera.
+    public static GameObject Create(Transform parent, string text, Vector3 localOffset, float fontSize, Color color)
+    {
+        if (!CanRender(text))
         {
             return null;
         }
 
-        GameObject labelObject = new GameObject($"Label_{text}");
-        labelObject.transform.SetParent(parent, false);
+        float parentScale = ParentScale(parent);
+        float worldHeight = fontSize * WorldUnitsPerFontSize;
 
-        // Kompensasi skala induk agar offset & ukuran tetap dalam satuan dunia nyata.
-        float parentScale = Mathf.Max(parent.lossyScale.y, 0.0001f);
-        labelObject.transform.localPosition = new Vector3(0f, worldOffsetY / parentScale, 0f);
+        GameObject labelObject = NewChild(parent, $"Label_{text}", localOffset / parentScale, Quaternion.identity);
+        labelObject.transform.localScale = Vector3.one * (worldHeight / (fontSize * parentScale));
 
         TextMeshPro label = labelObject.AddComponent<TextMeshPro>();
-        label.font = fontAsset;
-        label.text = text;
-        label.fontSize = 36f;
-        label.fontStyle = FontStyles.Bold;
-        label.alignment = TextAlignmentOptions.Center;
-        label.textWrappingMode = TextWrappingModes.NoWrap;
-        label.color = color;
-        label.outlineWidth = 0.2f;
-        label.outlineColor = new Color(0.08f, 0.08f, 0.1f);
-        label.ForceMeshUpdate();
-
-        float boundsHeight = label.textBounds.size.y;
-
-        if (boundsHeight > 0.0001f)
-        {
-            float scale = worldHeight / (boundsHeight * parentScale);
-            Debug.Assert(!float.IsNaN(scale) && !float.IsInfinity(scale), "Skala label tidak valid.");
-            labelObject.transform.localScale = Vector3.one * scale;
-        }
+        ApplyTextStyle(label, text, fontSize, color, FontStyles.Bold);
 
         labelObject.AddComponent<Billboard>();
         return labelObject;
+    }
+
+    // Teks 3D statis menempel pada geometri (mis. di atas tutup tong). Tanpa Billboard agar tidak berputar.
+    public static GameObject CreateStaticLabel(
+        Transform parent,
+        string text,
+        Vector3 localOffset,
+        Vector3 localEuler,
+        float fontSize,
+        float scaleFactor,
+        Color color)
+    {
+        if (!CanRender(text))
+        {
+            return null;
+        }
+
+        float parentScale = ParentScale(parent);
+
+        GameObject labelObject = NewChild(parent, $"Label_{text}", localOffset / parentScale, Quaternion.Euler(localEuler));
+        labelObject.transform.localScale = Vector3.one * scaleFactor;
+
+        TextMeshPro label = labelObject.AddComponent<TextMeshPro>();
+        ApplyTextStyle(label, text, fontSize, color, FontStyles.Bold);
+
+        return labelObject;
+    }
+
+    private static void ApplyTextStyle(TextMeshPro label, string content, float fontSize, Color color, FontStyles style)
+    {
+        label.font = TMP_Settings.defaultFontAsset;
+        label.text = content;
+        label.fontSize = fontSize;
+        label.enableAutoSizing = false;
+        label.fontStyle = style;
+        label.alignment = TextAlignmentOptions.Center;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.extraPadding = false;
+        label.color = color;
+        label.outlineWidth = 0.12f;
+        label.outlineColor = OutlineColor;
+    }
+
+    private static GameObject NewChild(Transform parent, string name, Vector3 localPosition, Quaternion localRotation)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = localPosition;
+        go.transform.localRotation = localRotation;
+        return go;
+    }
+
+    private static float ParentScale(Transform parent)
+    {
+        return Mathf.Max(Mathf.Abs(parent.lossyScale.y), 0.0001f);
+    }
+
+    private static bool CanRender(string text)
+    {
+        return !string.IsNullOrEmpty(text) && TMP_Settings.defaultFontAsset != null;
     }
 }

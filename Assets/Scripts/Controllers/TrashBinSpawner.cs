@@ -29,25 +29,23 @@ public class TrashBinSpawner : MonoBehaviour
     [SerializeField] private ARRaycastManager raycastManager;
     [SerializeField] private Transform arCamera;
 
-    [Header("Placement")]
-    [SerializeField, Min(0f)] private float horizontalOffset = 0.35f;
-
     private readonly List<ARRaycastHit> hitResults = new List<ARRaycastHit>();
     private readonly GameObject[] spawnedBins = new GameObject[BinCount];
     private readonly Transform[] binLids = new Transform[BinCount];
 
-    // Label kategori melayang di atas mulut tempat sampah (design.md cat colors).
-    private const float BinLabelOffsetY = 0.9f; // 0.5m di atas mulut tempat sampah (~0.4m)
-    private const float BinLabelHeight = 0.1f;
-    private static readonly Color OrganicLabelColor = new Color(0.18f, 0.49f, 0.2f);    // #2e7d32
-    private static readonly Color InorganicLabelColor = new Color(0.96f, 0.5f, 0.09f);  // #f57f17
-    private static readonly Color B3LabelColor = new Color(0.78f, 0.16f, 0.16f);        // #c62828
+    // Teks statis di dinding depan luar tong; 180 Y menghadapkan muka teks ke kamera (tanpa tilt).
+    private static readonly Vector3 BinLabelOffset = new Vector3(0f, 0.18f, 0.10f);
+    private static readonly Vector3 BinLabelEuler = new Vector3(0f, 180f, 0f);
+    private const float BinLabelFontSize = 2.8f;
+    private const float BinLabelScaleFactor = 0.06f;
+    private const float MinBinSpacing = 0.35f; // jarak center-to-center antar tong (m)
 
     public bool HasPlacedBins => HasAllBins();
 
     private void Awake()
     {
         Instance = this;
+        ForceLoadPrefabs();
         ResolveReferences();
 
         if (!HasAllPrefabs())
@@ -72,6 +70,14 @@ public class TrashBinSpawner : MonoBehaviour
         {
             Instance = null;
         }
+    }
+
+    // Fallback runtime: isi referensi prefab yang kosong dari Resources (path relatif Assets/Resources).
+    private void ForceLoadPrefabs()
+    {
+        if (organicBinPrefab == null) organicBinPrefab = Resources.Load<GameObject>("Prefabs/Bins/Bin_Organik");
+        if (inorganicBinPrefab == null) inorganicBinPrefab = Resources.Load<GameObject>("Prefabs/Bins/Bin_Anorganik");
+        if (b3BinPrefab == null) b3BinPrefab = Resources.Load<GameObject>("Prefabs/Bins/Bin_B3");
     }
 
     private void Update()
@@ -146,7 +152,14 @@ public class TrashBinSpawner : MonoBehaviour
 
     private static void AddBinLabel(GameObject bin, TrashBinCategory category)
     {
-        FloatingLabel.Create(bin.transform, GetLabelText(category), BinLabelOffsetY, BinLabelHeight, GetLabelColor(category));
+        FloatingLabel.CreateStaticLabel(
+            bin.transform,
+            GetLabelText(category),
+            BinLabelOffset,
+            BinLabelEuler,
+            BinLabelFontSize,
+            BinLabelScaleFactor,
+            Color.white);
     }
 
     private static string GetLabelText(TrashBinCategory category)
@@ -159,19 +172,6 @@ public class TrashBinSpawner : MonoBehaviour
                 return "ANORGANIK";
             default:
                 return "B3";
-        }
-    }
-
-    private static Color GetLabelColor(TrashBinCategory category)
-    {
-        switch (category)
-        {
-            case TrashBinCategory.Organik:
-                return OrganicLabelColor;
-            case TrashBinCategory.Anorganik:
-                return InorganicLabelColor;
-            default:
-                return B3LabelColor;
         }
     }
 
@@ -241,7 +241,7 @@ public class TrashBinSpawner : MonoBehaviour
 
     private Vector3 GetBinPosition(Vector3 center, Vector3 rowRight, int index)
     {
-        float offset = (index - 1) * horizontalOffset;
+        float offset = (index - 1) * MinBinSpacing;
         return center + rowRight * offset;
     }
 

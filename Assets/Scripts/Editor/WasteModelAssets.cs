@@ -32,6 +32,39 @@ public static class WasteModelAssets
         }
     }
 
+    // Cari model tong kustom (mis. 'Bin_Organik') di folder Assets/Models; null bila tidak ada.
+    public static GameObject FindCustomBinModel(string modelName)
+    {
+        if (string.IsNullOrEmpty(modelName))
+        {
+            return null;
+        }
+
+        foreach (string guid in AssetDatabase.FindAssets($"{modelName} t:GameObject"))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+
+            if (!path.StartsWith(ModelsFolder + "/", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!string.Equals(Path.GetFileNameWithoutExtension(path), modelName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+
+            if (model != null)
+            {
+                return model;
+            }
+        }
+
+        return null;
+    }
+
     private static void EnsureFolders()
     {
         if (!AssetDatabase.IsValidFolder(ModelsFolder))

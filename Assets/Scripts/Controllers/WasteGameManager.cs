@@ -26,9 +26,12 @@ public class WasteGameManager : MonoBehaviour
 
     private const float BlinkInterval = 0.15f;
     private const float MaxRayDistance = 10f;
-    private const float DropRadius = 0.3f; // jarak horizontal ke tempat sampah agar dianggap di atasnya
+    private const float DropRadius = 0.30f; // jarak horizontal ke tempat sampah agar dianggap di atasnya
     private const float ReturnSpeed = 8f;  // laju Lerp kembali ke titik melayang awal
     private const float LidSpeed = 6f;     // laju animasi buka/tutup penutup tempat sampah
+    private const float BinMouthHeight = 0.25f;  // tinggi mulut tong (1 tong ~0.20m) + celah di atasnya
+    private const float SpawnFloorOffset = 0.05f; // sampah duduk sejajar lantai AR (floorY + 0.05m)
+    private const float SpawnClearanceFromBins = 0.45f; // jarak spawn di depan barisan tong
 
     [Header("Sesi")]
     [SerializeField, Min(1)] private int sessionQuota = 8;
@@ -38,8 +41,6 @@ public class WasteGameManager : MonoBehaviour
     [SerializeField] private Transform spawnAnchor;
     [SerializeField, Min(0.1f)] private float spawnDistance = 1.2f;
     [SerializeField, Min(0.01f)] private float itemScale = 0.15f;
-    [SerializeField, Min(0f)] private float spawnHeightOffset = 0.35f;  // lebih tinggi dari pusat
-    [SerializeField, Min(0f)] private float spawnForwardOffset = 0.15f; // maju ke arah kamera
 
     [Header("Referensi AR")]
     [SerializeField] private TrashBinSpawner binSpawner;
@@ -215,6 +216,23 @@ public class WasteGameManager : MonoBehaviour
         }
 
         hoveredBin = FindBinNear(movingItem.transform.position);
+
+        // Y diatur terpisah dari bidang drag: naik halus ke tinggi mulut tong agar tidak tenggelam.
+        float targetY = dragPlane.distance;
+
+        if (hoveredBin.HasValue && binSpawner != null)
+        {
+            GameObject hovered = binSpawner.GetBin(hoveredBin.Value);
+
+            if (hovered != null)
+            {
+                targetY = hovered.transform.position.y + BinMouthHeight;
+            }
+        }
+
+        Vector3 position = movingItem.transform.position;
+        position.y = Mathf.MoveTowards(position.y, targetY, Time.deltaTime * ReturnSpeed);
+        movingItem.transform.position = position;
     }
 
     private TrashBinSpawner.TrashBinCategory? FindBinNear(Vector3 position)
@@ -584,25 +602,54 @@ public class WasteGameManager : MonoBehaviour
     private Vector3 GetSpawnPosition()
     {
         Vector3 position;
+        GameObject referenceBin = binSpawner != null
+            ? binSpawner.GetBin(TrashBinSpawner.TrashBinCategory.Anorganik)
+            : null;
 
-        if (spawnAnchor != null)
+        if (referenceBin != null)
+        {
+            // Sejajar di depan barisan tong, menghadap kamera.
+            position = referenceBin.transform.position - GetHorizontalForward() * SpawnClearanceFromBins;
+        }
+        else if (spawnAnchor != null)
         {
             position = spawnAnchor.position;
         }
         else if (arCamera == null)
         {
-            position = transform.position + Vector3.up * 0.2f;
+            position = transform.position;
         }
         else
         {
             position = arCamera.transform.position + arCamera.transform.forward * spawnDistance;
         }
 
-        // Angkat & majukan sedikit agar sampah tidak tenggelam di dalam mesh tempat sampah.
-        position += Vector3.up * spawnHeightOffset;
-        position -= GetHorizontalForward() * spawnForwardOffset;
-
+        // Dudukkan di dataran lantai AR (setinggi alas tong), bukan melayang di atas tong.
+        position.y = GetFloorHeight() + SpawnFloorOffset;
         return position;
+    }
+
+    private float GetFloorHeight()
+    {
+        if (binSpawner != null)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                GameObject bin = binSpawner.GetBin((TrashBinSpawner.TrashBinCategory)i);
+
+                if (bin != null)
+                {
+                    return bin.transform.position.y;
+                }
+            }
+        }
+
+        if (spawnAnchor != null)
+        {
+            return spawnAnchor.position.y;
+        }
+
+        return arCamera != null ? arCamera.transform.position.y : transform.position.y;
     }
 
     private Vector3 GetHorizontalForward()
@@ -626,6 +673,7 @@ public class WasteGameManager : MonoBehaviour
         }
 
         Vector3 direction = GetSpawnPosition() - arCamera.transform.position;
+        direction.y = 0f; // sampah di lantai: hadapkan mendatar ke kamera, jangan menunduk.
 
         return direction.sqrMagnitude > 0.0001f
             ? Quaternion.LookRotation(direction.normalized, Vector3.up)

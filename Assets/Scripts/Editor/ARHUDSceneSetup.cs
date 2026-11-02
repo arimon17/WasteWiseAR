@@ -141,29 +141,28 @@ public static class ARHUDSceneSetup
     {
         Element element = new Element();
 
-        // Top Bar: floating card (surface-card, sudut tumpul, padding 12px 20px)
+        // Top Bar: floating pill bar semi-transparan berisi chip skor, progres, dan tombol menu.
         GameObject topBar = NewUi("TopBar", root);
         RectTransform topBarRect = topBar.GetComponent<RectTransform>();
         topBarRect.anchorMin = new Vector2(0f, 1f);
         topBarRect.anchorMax = new Vector2(1f, 1f);
         topBarRect.pivot = new Vector2(0.5f, 1f);
         topBarRect.anchoredPosition = new Vector2(0f, -TopBarTopOffset);
-        topBarRect.sizeDelta = new Vector2(-48f, 192f);
+        topBarRect.sizeDelta = new Vector2(-48f, 160f);
 
         Image topBarImage = topBar.AddComponent<Image>();
-        topBarImage.color = SurfaceCard;
-        ApplyRounded(topBarImage, 16);
+        topBarImage.color = SurfaceOverlay;
+        ApplyRounded(topBarImage, 24);
 
-        element.itemName = CreateText("ItemName", topBar.transform, "Sampah: -", 42f, TextAlignmentOptions.TopLeft, TextMain);
-        SetRect(element.itemName.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(60f, -30f), new Vector2(620f, 56f));
+        element.score = CreateChip("ScoreChip", topBar.transform, "Skor: 0", new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(320f, 112f), 40f);
+        element.progress = CreateChip("ProgressChip", topBar.transform, "1 / 8", new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(240f, 112f), 40f);
+        element.menuButton = CreateButton("MenuButton", topBar.transform, "Menu", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(200f, 112f), 36f);
 
-        element.score = CreateText("Score", topBar.transform, "Skor: 0", 36f, TextAlignmentOptions.TopLeft, TextSub);
-        SetRect(element.score.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(60f, -100f), new Vector2(380f, 50f));
+        element.itemName = CreateText("ItemName", root, "Sampah: -", 42f, TextAlignmentOptions.Center, TextMain);
+        SetRect(element.itemName.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -TopBarTopOffset - 180f), new Vector2(700f, 60f));
 
-        element.progress = CreateText("Progress", topBar.transform, "1 / 8", 36f, TextAlignmentOptions.TopLeft, TextSub);
-        SetRect(element.progress.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(460f, -100f), new Vector2(260f, 50f));
-
-        element.menuButton = CreateButton("MenuButton", topBar.transform, "Menu", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-36f, -36f), new Vector2(180f, 120f), 36f);
+        TextMeshProUGUI guidance = CreateText("GuidanceText", root, "Sentuh & seret sampah ke wadah yang tepat", 42f, TextAlignmentOptions.Center, TextSub);
+        SetRect(guidance.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 400f), new Vector2(960f, 60f));
 
         // Feedback Banner: toast bottom-stretch (menempel rapi di bawah, aman dari notch/nav bar)
         element.feedbackPanel = NewUi("FeedbackBanner", root);
@@ -310,6 +309,27 @@ public static class ARHUDSceneSetup
         Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
 
         return button;
+    }
+
+    private static TMP_Text CreateChip(string name, Transform parent, string label, Vector2 anchor, Vector2 position, Vector2 size, float fontSize)
+    {
+        GameObject chip = NewUi(name, parent);
+        RectTransform chipRect = chip.GetComponent<RectTransform>();
+        chipRect.anchorMin = anchor;
+        chipRect.anchorMax = anchor;
+        chipRect.pivot = anchor;
+        chipRect.anchoredPosition = position;
+        chipRect.sizeDelta = size;
+
+        Image image = chip.AddComponent<Image>();
+        image.color = SurfaceCard;
+        ApplyRounded(image, 16);
+
+        TextMeshProUGUI text = CreateText("Label", chip.transform, label, fontSize, TextAlignmentOptions.Center, TextMain);
+        text.fontStyle = FontStyles.Bold;
+        Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
+
+        return text;
     }
 
     private static TextMeshProUGUI CreateText(string name, Transform parent, string content, float fontSize, TextAlignmentOptions alignment, Color color)

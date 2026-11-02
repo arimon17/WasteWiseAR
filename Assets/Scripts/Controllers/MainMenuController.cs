@@ -92,6 +92,6 @@ public class MainMenuController : MonoBehaviour
         }
 
         int best = PlayerPrefs.GetInt("HighScore", 0);
-        highScoreText.text = $"Skor Terbaik: {best}";
+        highScoreText.text = best.ToString();
     }
 }
