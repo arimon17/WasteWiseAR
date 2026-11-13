@@ -6,7 +6,7 @@ using UnityEngine;
 public static class WasteModelBuilder
 {
     private const float LabelWorldOffset = 0.28f; // di atas mesh sampah agar nameplate tegak & jelas
-    private const float NameplateFontSize = 1.5f;
+    public const float NameplateFontSize = 7.5f;
 
     // Dipanggil WasteGameManager: pasang visual + nameplate di bawah root item (root diskala 0.15).
     public static void Build(Transform item, string itemName, TrashCategory category)

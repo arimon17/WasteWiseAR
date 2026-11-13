@@ -47,7 +47,7 @@ public static class FloatingLabel
         float parentScale = ParentScale(parent);
 
         GameObject labelObject = NewChild(parent, $"Label_{text}", localOffset / parentScale, Quaternion.Euler(localEuler));
-        labelObject.transform.localScale = Vector3.one * scaleFactor;
+        labelObject.transform.localScale = Vector3.one * (scaleFactor / parentScale);
 
         TextMeshPro label = labelObject.AddComponent<TextMeshPro>();
         ApplyTextStyle(label, text, fontSize, color, FontStyles.Bold);

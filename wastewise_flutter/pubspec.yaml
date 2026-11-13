@@ -95,32 +95,26 @@ flutter:
 # Launcher icon configuration (flutter_launcher_icons)
 flutter_launcher_icons:
   android: "ic_launcher"
-  ios: true
-  remove_alpha_ios: true
+  ios: false
   image_path: "assets/icons/app_icon.png"
   adaptive_icon_background: "#0F172A"
-  adaptive_icon_foreground: "assets/icons/app_icon.png"
-  web:
-    generate: true
-    image_path: "assets/icons/app_icon.png"
-    background_color: "#0F172A"
-    theme_color: "#0F172A"
-  windows:
-    generate: true
-    image_path: "assets/icons/app_icon.png"
-    icon_size: 256
+  adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
+  adaptive_icon_foreground_inset: 0
 
 # Splash screen configuration (flutter_native_splash)
 flutter_native_splash:
+  android: true
+  ios: false
+  web: false
   color: "#0F172A"
-  image: "assets/icons/app_icon.png"
+  image: "assets/icons/app_icon_splash.png"
   color_dark: "#0F172A"
-  image_dark: "assets/icons/app_icon.png"
+  image_dark: "assets/icons/app_icon_splash.png"
   ios_content_mode: center
   android_12:
     color: "#0F172A"
-    image: "assets/icons/app_icon.png"
+    image: "assets/icons/app_icon_splash.png"
     icon_background_color: "#0F172A"
     color_dark: "#0F172A"
-    image_dark: "assets/icons/app_icon.png"
+    image_dark: "assets/icons/app_icon_splash.png"
     icon_background_color_dark: "#0F172A"

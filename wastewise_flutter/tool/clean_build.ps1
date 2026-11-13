@@ -48,7 +48,32 @@ else {
     Write-Warning "gradlew.bat tidak ditemukan di $androidRoot"
 }
 
-Write-Step "3. Restart ADB server"
+Write-Step "3. Gradle clean (hapus output build Gradle)"
+if (Test-Path $gradlew) {
+    Push-Location $androidRoot
+    try {
+        & $gradlew clean --console=plain
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "gradlew clean selesai dengan exit code $LASTEXITCODE"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    Push-Location $androidRoot
+    try {
+        & $gradlew --stop
+    }
+    finally {
+        Pop-Location
+    }
+}
+else {
+    Write-Warning "gradlew.bat tidak ditemukan di $androidRoot"
+}
+
+Write-Step "4. Restart ADB server"
 $adbCommand = Get-Command adb -ErrorAction SilentlyContinue
 if ($adbCommand) {
     $adbPath = $adbCommand.Source
@@ -69,7 +94,7 @@ else {
     Write-Warning "adb tidak ditemukan. Pastikan Android SDK platform-tools terpasang."
 }
 
-Write-Step "4. flutter clean"
+Write-Step "5. flutter clean"
 Push-Location $appRoot
 try {
     & flutter clean
@@ -82,7 +107,10 @@ try {
         ".dart_tool",
         "android\.gradle",
         "android\build",
-        "android\app\build"
+        "android\app\build",
+        "android\unityLibrary\unityLibrary\build",
+        "android\unityLibrary\unityLibrary\.cxx",
+        "android\unityLibrary\unityLibrary\src\main\cpp\.cxx"
     )
 
     foreach ($relativePath in $leftovers) {
@@ -98,7 +126,18 @@ try {
         }
     }
 
-    Write-Step "5. flutter pub get"
+    $gradleBuildCache = Join-Path $env:USERPROFILE ".gradle\caches\build-cache-1"
+    if (Test-Path $gradleBuildCache) {
+        try {
+            Remove-Item -LiteralPath $gradleBuildCache -Recurse -Force
+            Write-Host "Menghapus cache Gradle: $gradleBuildCache"
+        }
+        catch {
+            Write-Warning "Gagal menghapus cache Gradle: $($_.Exception.Message)"
+        }
+    }
+
+    Write-Step "6. flutter pub get"
     & flutter pub get
     if ($LASTEXITCODE -ne 0) {
         throw "flutter pub get gagal dengan exit code $LASTEXITCODE"

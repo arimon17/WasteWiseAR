@@ -44,7 +44,7 @@ else {
     Write-Warning "gradlew.bat tidak ditemukan di $androidRoot"
 }
 
-foreach ($abi in @("arm64-v8a", "armeabi-v7a")) {
+foreach ($abi in @("arm64-v8a")) {
     $il2cpp = Join-Path $androidRoot "unityLibrary\unityLibrary\src\main\jniLibs\$abi\libil2cpp.so"
     if (-not (Test-Path -LiteralPath $il2cpp)) {
         Write-Warning "libil2cpp.so $abi tidak ditemukan; build akan memicu kompilasi IL2CPP berat."

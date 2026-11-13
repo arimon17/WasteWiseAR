@@ -11,3 +11,12 @@
 *.aab
 .vs/
 .idea/
+
+# Android signing (jangan pernah dikomit)
+*.jks
+*.keystore
+key.properties
+
+# Build artifacts
+wastewise_flutter/build/
+wastewise_flutter/android/app/release/

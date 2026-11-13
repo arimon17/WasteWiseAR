@@ -24,6 +24,8 @@ public class WasteGameManager : MonoBehaviour
     private static readonly Color CorrectColor = new Color(0f, 0.8f, 0.15f);
     private static readonly Color WrongColor = new Color(0.9f, 0.1f, 0.1f);
 
+    private const int CorrectPoints = 10;
+    private const int WrongPenalty = 5;
     private const float BlinkInterval = 0.15f;
     private const float MaxRayDistance = 10f;
     private const float DropRadius = 0.30f; // jarak horizontal ke tempat sampah agar dianggap di atasnya
@@ -32,9 +34,10 @@ public class WasteGameManager : MonoBehaviour
     private const float BinMouthHeight = 0.25f;  // tinggi mulut tong (1 tong ~0.20m) + celah di atasnya
     private const float SpawnFloorOffset = 0.05f; // sampah duduk sejajar lantai AR (floorY + 0.05m)
     private const float SpawnClearanceFromBins = 0.45f; // jarak spawn di depan barisan tong
+    private const float PrefabLabelOffset = 0.28f; // nameplate di atas model 3D yang sudah dinormalkan ~0.12m
 
     [Header("Sesi")]
-    [SerializeField, Min(1)] private int sessionQuota = 8;
+    [SerializeField, Min(1)] private int sessionQuota = 10;
     [SerializeField, Min(0.1f)] private float feedbackDuration = 1f;
 
     [Header("Spawn")]
@@ -49,14 +52,18 @@ public class WasteGameManager : MonoBehaviour
     [Header("Variasi Sampah (kosong = pakai daftar bawaan)")]
     [SerializeField] private WasteDefinition[] wasteDefinitions;
 
+    [Header("Prefab Model 3D (Quaternius)")]
+    [SerializeField] private WasteItem[] wasteItems;
+
     public event Action<WasteItem, bool, string> OnAnswerEvaluated;
     public event Action<int, int> OnSessionCompleted;
 
     private readonly List<WasteDefinition> pool = new List<WasteDefinition>();
+    private readonly List<WasteDefinition> sessionQueue = new List<WasteDefinition>();
     private WasteItem activeItem;
     private int sortedCount;
     private int wrongCount;
-    private int lastPoolIndex = -1;
+    private int currentScore;
     private bool sessionRunning;
     private bool sessionFinished;
 
@@ -75,6 +82,7 @@ public class WasteGameManager : MonoBehaviour
     public bool IsSessionRunning => sessionRunning;
     public int SortedCount => sortedCount;
     public int WrongCount => wrongCount;
+    public int Score => currentScore;
     public int SessionQuota => sessionQuota;
     public string ActiveItemName => activeItem != null ? activeItem.ItemName : string.Empty;
 
@@ -128,10 +136,14 @@ public class WasteGameManager : MonoBehaviour
         sessionRunning = true;
         sortedCount = 0;
         wrongCount = 0;
+        currentScore = 0;
         movingItem = null;
         dragging = false;
         returning = false;
         hoveredBin = null;
+
+        BuildSessionQueue();
+        UnityFlutterBridge.Instance?.SendGameStateToFlutter(Score, 1, sessionQuota);
         SpawnNext();
     }
 
@@ -355,12 +367,22 @@ public class WasteGameManager : MonoBehaviour
         if (!correct)
         {
             wrongCount++;
+            currentScore -= WrongPenalty;
+            UnityFlutterBridge.Instance?.SendGameStateToFlutter(
+                Score,
+                Mathf.Min(sortedCount + 1, sessionQuota),
+                sessionQuota);
             // Salah: sampah kembali melayang agar bisa dicoba lagi.
             returning = true;
             return;
         }
 
         sortedCount++;
+        currentScore += CorrectPoints;
+        UnityFlutterBridge.Instance?.SendGameStateToFlutter(
+            Score,
+            Mathf.Min(sortedCount + 1, sessionQuota),
+            sessionQuota);
 
         if (activeItem == item)
         {
@@ -403,6 +425,23 @@ public class WasteGameManager : MonoBehaviour
 
     private WasteItem CreateWasteItem(WasteDefinition definition)
     {
+        WasteItem prefab = FindWastePrefab(definition.itemName);
+
+        if (prefab != null)
+        {
+            WasteItem instance = Instantiate(prefab, GetSpawnPosition(), GetSpawnRotation());
+            instance.Configure(definition.itemName, definition.category, definition.explanation);
+            Rigidbody body = instance.GetComponent<Rigidbody>();
+
+            if (body != null)
+            {
+                body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+            }
+
+            FloatingLabel.Create(instance.transform, definition.itemName, new Vector3(0f, PrefabLabelOffset, 0f), WasteModelBuilder.NameplateFontSize, Color.white);
+            return instance;
+        }
+
         GameObject go = new GameObject("WasteItem");
         go.transform.SetPositionAndRotation(GetSpawnPosition(), GetSpawnRotation());
         go.transform.localScale = Vector3.one * itemScale;
@@ -418,6 +457,30 @@ public class WasteGameManager : MonoBehaviour
         WasteModelBuilder.Build(go.transform, definition.itemName, definition.category);
 
         return item;
+    }
+
+    private WasteItem FindWastePrefab(string itemName)
+    {
+        if (wasteItems == null || string.IsNullOrEmpty(itemName))
+        {
+            return null;
+        }
+
+        foreach (WasteItem prefab in wasteItems)
+        {
+            if (prefab == null)
+            {
+                continue;
+            }
+
+            if (string.Equals(prefab.ItemName, itemName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(prefab.name, itemName, StringComparison.OrdinalIgnoreCase))
+            {
+                return prefab;
+            }
+        }
+
+        return null;
     }
 
     private void FinishSession()
@@ -516,32 +579,64 @@ public class WasteGameManager : MonoBehaviour
 
     private WasteDefinition PickDefinition()
     {
-        if (pool.Count <= 0)
+        if (sessionQueue.Count == 0)
         {
             return default;
         }
 
-        if (pool.Count == 1)
+        WasteDefinition definition = sessionQueue[0];
+        sessionQueue.RemoveAt(0);
+        return definition;
+    }
+
+    // Fisher-Yates: acak seluruh pool sekali per sesi lalu ambil 10 pertama agar tidak ada duplikat.
+    private void BuildSessionQueue()
+    {
+        sessionQueue.Clear();
+        sessionQueue.AddRange(pool);
+
+        for (int i = sessionQueue.Count - 1; i > 0; i--)
         {
-            lastPoolIndex = 0;
-            return pool[0];
+            int j = UnityEngine.Random.Range(0, i + 1);
+            WasteDefinition swap = sessionQueue[i];
+            sessionQueue[i] = sessionQueue[j];
+            sessionQueue[j] = swap;
         }
 
-        int index;
+        int count = Mathf.Min(sessionQuota, sessionQueue.Count);
 
-        do
+        if (count < sessionQueue.Count)
         {
-            index = UnityEngine.Random.Range(0, pool.Count);
+            sessionQueue.RemoveRange(count, sessionQueue.Count - count);
         }
-        while (index == lastPoolIndex);
-
-        lastPoolIndex = index;
-        return pool[index];
     }
 
     private void BuildPool()
     {
         pool.Clear();
+
+        if (wasteItems != null && wasteItems.Length > 0)
+        {
+            foreach (WasteItem prefab in wasteItems)
+            {
+                if (prefab == null)
+                {
+                    continue;
+                }
+
+                pool.Add(new WasteDefinition
+                {
+                    itemName = prefab.ItemName,
+                    category = prefab.CorrectCategory,
+                    explanation = prefab.Explanation
+                });
+            }
+
+            if (pool.Count > 0)
+            {
+                return;
+            }
+        }
 
         if (wasteDefinitions != null && wasteDefinitions.Length > 0)
         {
@@ -549,54 +644,15 @@ public class WasteGameManager : MonoBehaviour
             return;
         }
 
-        pool.Add(new WasteDefinition
+        foreach (WasteCatalogEntry entry in WasteCatalog.Entries)
         {
-            itemName = "Kulit Pisang",
-            category = TrashCategory.Organik,
-            explanation = "Kulit buah adalah sampah organik yang membusuk alami dan bisa dijadikan kompos."
-        });
-        pool.Add(new WasteDefinition
-        {
-            itemName = "Sisa Nasi",
-            category = TrashCategory.Organik,
-            explanation = "Sisa makanan termasuk organik; pisahkan agar bisa diolah menjadi kompos."
-        });
-        pool.Add(new WasteDefinition
-        {
-            itemName = "Bungkus Mi Instan",
-            category = TrashCategory.Anorganik,
-            explanation = "Bungkus plastik sulit terurai; kumpulkan dengan sampah anorganik untuk didaur ulang."
-        });
-        pool.Add(new WasteDefinition
-        {
-            itemName = "Botol Plastik",
-            category = TrashCategory.Anorganik,
-            explanation = "Botol plastik PET bernilai daur ulang; bilas lalu masukkan ke wadah anorganik."
-        });
-        pool.Add(new WasteDefinition
-        {
-            itemName = "Kardus",
-            category = TrashCategory.Anorganik,
-            explanation = "Kardus berbahan kertas dapat didaur ulang menjadi produk baru."
-        });
-        pool.Add(new WasteDefinition
-        {
-            itemName = "Kaleng Minuman",
-            category = TrashCategory.Anorganik,
-            explanation = "Kaleng aluminium bernilai jual dan mudah didaur ulang."
-        });
-        pool.Add(new WasteDefinition
-        {
-            itemName = "Baterai Bekas",
-            category = TrashCategory.B3,
-            explanation = "Baterai mengandung logam berat berbahaya; buang ke tempat sampah B3."
-        });
-        pool.Add(new WasteDefinition
-        {
-            itemName = "Lampu Neon Bekas",
-            category = TrashCategory.B3,
-            explanation = "Lampu neon mengandung merkuri sehingga termasuk limbah B3."
-        });
+            pool.Add(new WasteDefinition
+            {
+                itemName = entry.itemName,
+                category = entry.category,
+                explanation = entry.explanation
+            });
+        }
     }
 
     private Vector3 GetSpawnPosition()

@@ -14,6 +14,7 @@ public static class TrashBinPrefabCreator
     private const string UrpLitShaderName = "Universal Render Pipeline/Lit";
     private const string SharedBinModelPath = "Assets/Models/trashcan_single.obj";
     private const float TargetBinHeight = 0.20f; // tinggi 1 tong tunggal dunia nyata (m)
+    private const float ProceduralBinHeight = 0.55f; // tinggi prefab prosedural sebelum diskala
 
     [MenuItem("WasteWise/Generate Trash Bin Prefabs")]
     public static void GenerateTrashBinPrefabs()
@@ -235,6 +236,10 @@ public static class TrashBinPrefabCreator
         mouthCollider.center = new Vector3(0f, Mathf.Max(TargetBinHeight - 0.04f, 0.02f), 0f);
         mouthCollider.size = new Vector3(width * 0.9f, 0.08f, depth * 0.9f);
 
+        Rigidbody binBody = root.AddComponent<Rigidbody>();
+        binBody.isKinematic = true;
+        binBody.useGravity = false;
+
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
         Object.DestroyImmediate(root);
 
@@ -382,6 +387,7 @@ public static class TrashBinPrefabCreator
     private static GameObject CreateBinPrefab(string prefabName, string prefabPath, Material bodyMaterial, Material lidMaterial)
     {
         GameObject root = new GameObject(prefabName);
+        root.transform.localScale = Vector3.one * (TargetBinHeight / ProceduralBinHeight);
 
         // Badan tong kotak solid (bukan trigger) supaya sampah tidak menerobos mesh tong.
         BoxCollider bodyCollider = root.AddComponent<BoxCollider>();
@@ -395,6 +401,10 @@ public static class TrashBinPrefabCreator
         mouthCollider.isTrigger = true;
         mouthCollider.center = new Vector3(0f, 0.53f, 0f);
         mouthCollider.size = new Vector3(0.38f, 0.06f, 0.38f);
+
+        Rigidbody binBody = root.AddComponent<Rigidbody>();
+        binBody.isKinematic = true;
+        binBody.useGravity = false;
 
         // Bentuk tong kotak publik: alas/penyangga, badan balok tumpul, bibir mulut, penutup berengsel.
         AddBoxPart(root.transform, "Base", new Vector3(0f, 0.03f, 0f), new Vector3(0.30f, 0.06f, 0.30f), lidMaterial);

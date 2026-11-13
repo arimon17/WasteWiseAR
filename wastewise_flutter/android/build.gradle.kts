@@ -45,13 +45,13 @@ tasks.register<Delete>("clean") {
 gradle.projectsEvaluated {
     val unityLibrary = rootProject.project(":unityLibrary")
     unityLibrary.tasks.matching { it.name == "buildIl2Cpp" }.configureEach {
-        val hasPrebuiltIl2Cpp = listOf("arm64-v8a", "armeabi-v7a").all { abi ->
+        val hasPrebuiltIl2Cpp = listOf("arm64-v8a").all { abi ->
             java.io.File(unityLibrary.projectDir, "src/main/jniLibs/$abi/libil2cpp.so").exists()
         }
         enabled = !hasPrebuiltIl2Cpp
 
         if (hasPrebuiltIl2Cpp) {
-            logger.lifecycle("[WasteWise] buildIl2Cpp dilewati: libil2cpp.so prebuilt tersedia.")
+            logger.lifecycle("[WasteWise] buildIl2Cpp dilewati: libil2cpp.so arm64-v8a prebuilt tersedia.")
         }
     }
 }

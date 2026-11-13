@@ -110,8 +110,20 @@ class _CategoryList extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.name, style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 3),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.name,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _CategoryChip(category: item.category),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
                       Text(item.tip, style: theme.textTheme.bodyMedium),
                     ],
                   ),
@@ -121,6 +133,38 @@ class _CategoryList extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.category});
+
+  final WasteCategory category;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: category.color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: category.color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(category.icon, size: 12, color: category.color),
+          const SizedBox(width: 4),
+          Text(
+            category.label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: category.color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

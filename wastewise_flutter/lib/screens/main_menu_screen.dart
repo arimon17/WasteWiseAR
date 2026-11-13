@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../routes/app_routes.dart';
+import '../state/best_score.dart';
 import '../theme/app_theme.dart';
 
 class MainMenuScreen extends StatelessWidget {
@@ -29,7 +30,7 @@ class MainMenuScreen extends StatelessWidget {
                   ),
                   child: const Icon(
                     Icons.recycling_rounded,
-                    color: Color(0xFF4ADE80),
+                    color: AppColors.emerald,
                     size: 26,
                   ),
                 ),
@@ -132,6 +133,48 @@ class MainMenuScreen extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+            ValueListenableBuilder<int>(
+              valueListenable: bestScore,
+              builder: (context, value, _) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.emoji_events_rounded,
+                        color: Color(0xFFFBBF24),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Rekor terbaik',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textMain,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '$value',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: AppColors.emerald,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 28),
             Text('Jelajahi', style: theme.textTheme.titleLarge),

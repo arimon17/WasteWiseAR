@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_unity_widget/flutter_unity_widget.dart';
 
 import '../state/best_score.dart';
@@ -20,14 +21,41 @@ class _ARViewScreenState extends State<ARViewScreen>
   Timer? _feedbackTimer;
   Timer? _unitySyncTimer;
   bool _unityReady = false;
+  bool? _cameraPermission;
   int _currentScore = 0;
-  String _progressText = '1 / 8';
+  int _finalScore = 0;
+  bool _sessionComplete = false;
+  String _progressText = '1 / 10';
   _ArFeedback? _feedback;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _requestCameraPermission();
+  }
+
+  Future<void> _requestCameraPermission() async {
+    bool granted = false;
+    try {
+      granted = await const MethodChannel(
+        'wastewise/storage',
+      ).invokeMethod<bool>('ensureCameraPermission') ?? false;
+    } on PlatformException {
+      granted = false;
+    } on MissingPluginException {
+      granted = false;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() => _cameraPermission = granted);
+  }
+
+  void _retryCameraPermission() {
+    setState(() => _cameraPermission = null);
+    _requestCameraPermission();
   }
 
   @override
@@ -105,15 +133,26 @@ class _ARViewScreenState extends State<ARViewScreen>
         return;
       }
 
-      if (score > bestScore.value) {
-        bestScore.value = score;
-      }
+      unawaited(saveBestScore(score));
+      final completed = total > 0 && progress >= total;
 
       if (mounted) {
         setState(() {
           _currentScore = score;
           _progressText = '$progress / $total';
+          if (completed) {
+            _finalScore = score;
+            _sessionComplete = true;
+            _feedback = null;
+          } else if (progress <= 1 && score == 0) {
+            _finalScore = 0;
+            _sessionComplete = false;
+          }
         });
+      }
+
+      if (completed) {
+        _feedbackTimer?.cancel();
       }
       return;
     }
@@ -124,9 +163,7 @@ class _ARViewScreenState extends State<ARViewScreen>
         return;
       }
 
-      if (score > bestScore.value) {
-        bestScore.value = score;
-      }
+      unawaited(saveBestScore(score));
 
       if (mounted) {
         setState(() => _currentScore = score);
@@ -144,6 +181,10 @@ class _ARViewScreenState extends State<ARViewScreen>
     }
 
     if (type == 'feedback') {
+      if (_sessionComplete) {
+        return;
+      }
+
       final text = data['message']?.toString();
       if (text == null || text.isEmpty) {
         return;
@@ -195,17 +236,24 @@ class _ARViewScreenState extends State<ARViewScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          UnityWidget(
-            onUnityCreated: _onUnityCreated,
-            onUnityMessage: _onUnityMessage,
-            fullscreen: false,
-            unloadOnDispose: false,
-            printSetupLog: false,
-            placeholder: const Center(
-              child: CircularProgressIndicator(color: AppColors.emerald),
+          if (_cameraPermission == true)
+            UnityWidget(
+              onUnityCreated: _onUnityCreated,
+              onUnityMessage: _onUnityMessage,
+              fullscreen: false,
+              unloadOnDispose: false,
+              printSetupLog: false,
+              useAndroidViewSurface: false,
+              placeholder: const Center(
+                child: CircularProgressIndicator(color: AppColors.emerald),
+              ),
+            )
+          else
+            _CameraPermissionPanel(
+              checking: _cameraPermission == null,
+              onRetry: _retryCameraPermission,
             ),
-          ),
-          if (!_unityReady) const _UnityLoader(),
+          if (_cameraPermission == true && !_unityReady) const _UnityLoader(),
           Positioned(
             top: media.padding.top + 16,
             left: 16,
@@ -218,6 +266,14 @@ class _ARViewScreenState extends State<ARViewScreen>
             bottom: media.padding.bottom + 24,
             child: _buildBottomArea(context),
           ),
+          if (_sessionComplete)
+            Positioned.fill(
+              child: _SessionResultOverlay(
+                score: _finalScore,
+                best: bestScore.value,
+                onBackToMenu: () => Navigator.of(context).pop(),
+              ),
+            ),
         ],
       ),
     );
@@ -256,7 +312,7 @@ class _ARViewScreenState extends State<ARViewScreen>
           const SizedBox(width: 8),
           _HudChip(
             icon: Icons.checklist_rounded,
-            color: const Color(0xFF4ADE80),
+            color: AppColors.emerald,
             label: _progressText,
           ),
         ],
@@ -302,7 +358,7 @@ class _ARViewScreenState extends State<ARViewScreen>
               const Icon(
                 Icons.touch_app_rounded,
                 size: 20,
-                color: Color(0xFF4ADE80),
+                color: AppColors.emerald,
               ),
               const SizedBox(width: 10),
               Flexible(
@@ -413,6 +469,153 @@ class _FeedbackBanner extends StatelessWidget {
   }
 }
 
+class _SessionResultOverlay extends StatelessWidget {
+  const _SessionResultOverlay({
+    required this.score,
+    required this.best,
+    required this.onBackToMenu,
+  });
+
+  final int score;
+  final int best;
+  final VoidCallback onBackToMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.62),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.45),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.emerald.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.emoji_events_rounded,
+                    color: Color(0xFFFBBF24),
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Latihan Selesai', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 6),
+                Text('Skor akhir kamu', style: theme.textTheme.bodyMedium),
+                const SizedBox(height: 10),
+                Text(
+                  '$score',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: AppColors.emerald,
+                    fontSize: 44,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.workspace_premium_rounded,
+                      size: 18,
+                      color: Color(0xFFFBBF24),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Rekor terbaik: $best',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textMain,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onBackToMenu,
+                    icon: const Icon(Icons.home_rounded),
+                    label: const Text('Kembali ke Menu'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraPermissionPanel extends StatelessWidget {
+  const _CameraPermissionPanel({
+    required this.checking,
+    required this.onRetry,
+  });
+
+  final bool checking;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ColoredBox(
+      color: AppColors.navy,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: checking
+              ? const CircularProgressIndicator(color: AppColors.emerald)
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.no_photography_rounded,
+                      color: AppColors.emerald,
+                      size: 42,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Izin kamera diperlukan untuk menampilkan AR.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: AppColors.textMain,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.camera_alt_rounded),
+                      label: const Text('Izinkan Kamera'),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+}
+
 class _UnityLoader extends StatelessWidget {
   const _UnityLoader();
 
@@ -431,7 +634,7 @@ class _UnityLoader extends StatelessWidget {
               height: 34,
               child: CircularProgressIndicator(
                 strokeWidth: 3,
-                color: Color(0xFF4ADE80),
+                color: AppColors.emerald,
               ),
             ),
             const SizedBox(height: 16),

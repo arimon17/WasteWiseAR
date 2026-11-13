@@ -29,7 +29,7 @@ class CategoryInfoScreen extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.eco_rounded,
-                  color: Color(0xFF4ADE80),
+                  color: AppColors.emerald,
                   size: 22,
                 ),
                 const SizedBox(width: 12),

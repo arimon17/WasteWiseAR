@@ -33,11 +33,10 @@ public class TrashBinSpawner : MonoBehaviour
     private readonly GameObject[] spawnedBins = new GameObject[BinCount];
     private readonly Transform[] binLids = new Transform[BinCount];
 
-    // Teks statis di dinding depan luar tong; 180 Y menghadapkan muka teks ke kamera (tanpa tilt).
-    private static readonly Vector3 BinLabelOffset = new Vector3(0f, 0.18f, 0.10f);
-    private static readonly Vector3 BinLabelEuler = new Vector3(0f, 180f, 0f);
-    private const float BinLabelFontSize = 2.8f;
-    private const float BinLabelScaleFactor = 0.06f;
+    // Label melayang di atas tong agar selalu terbaca dan tidak tertutup badan tong.
+    private static readonly Vector3 BinLabelOffset = new Vector3(0f, 0.40f, 0f);
+    private const float BinLabelFontSize = 5f;
+    private const float TargetBinHeight = 0.32f; // tinggi tong dunia nyata (m)
     private const float MinBinSpacing = 0.35f; // jarak center-to-center antar tong (m)
 
     public bool HasPlacedBins => HasAllBins();
@@ -139,6 +138,8 @@ public class TrashBinSpawner : MonoBehaviour
 
             spawnedBins[i] = Instantiate(GetPrefab(category), position, rotation);
             spawnedBins[i].name = GetBinName(category);
+            NormalizeBinHeight(spawnedBins[i]);
+            EnsureKinematicBody(spawnedBins[i]);
             binLids[i] = spawnedBins[i].transform.Find("Lid");
             AddBinLabel(spawnedBins[i], category);
         }
@@ -152,14 +153,25 @@ public class TrashBinSpawner : MonoBehaviour
 
     private static void AddBinLabel(GameObject bin, TrashBinCategory category)
     {
-        FloatingLabel.CreateStaticLabel(
+        FloatingLabel.Create(
             bin.transform,
             GetLabelText(category),
             BinLabelOffset,
-            BinLabelEuler,
             BinLabelFontSize,
-            BinLabelScaleFactor,
-            Color.white);
+            GetLabelColor(category));
+    }
+
+    private static Color GetLabelColor(TrashBinCategory category)
+    {
+        switch (category)
+        {
+            case TrashBinCategory.Organik:
+                return new Color(0.62f, 1f, 0.66f);
+            case TrashBinCategory.Anorganik:
+                return new Color(1f, 0.94f, 0.55f);
+            default:
+                return new Color(1f, 0.62f, 0.62f);
+        }
     }
 
     private static string GetLabelText(TrashBinCategory category)
@@ -239,6 +251,43 @@ public class TrashBinSpawner : MonoBehaviour
         return $"TrashBin_{category}";
     }
 
+    // Rigidbody kinematic agar trigger mulut tong tetap mendeteksi sampah tanpa tong ikut fisika.
+    private static void EnsureKinematicBody(GameObject bin)
+    {
+        Rigidbody body = bin.GetComponent<Rigidbody>();
+
+        if (body == null)
+        {
+            body = bin.AddComponent<Rigidbody>();
+        }
+
+        body.isKinematic = true;
+        body.useGravity = false;
+    }
+
+    // Prefab lama bisa lebih tinggi dari 0.32 m; skala root agar label & mulut tong konsisten.
+    private static void NormalizeBinHeight(GameObject bin)
+    {
+        Renderer[] renderers = bin.GetComponentsInChildren<Renderer>();
+
+        if (renderers.Length == 0)
+        {
+            return;
+        }
+
+        Bounds bounds = renderers[0].bounds;
+
+        for (int i = 1; i < renderers.Length; i++)
+        {
+            bounds.Encapsulate(renderers[i].bounds);
+        }
+
+        if (bounds.size.y > 0.0001f)
+        {
+            bin.transform.localScale *= TargetBinHeight / bounds.size.y;
+        }
+    }
+
     private Vector3 GetBinPosition(Vector3 center, Vector3 rowRight, int index)
     {
         float offset = (index - 1) * MinBinSpacing;
@@ -266,22 +315,25 @@ public class TrashBinSpawner : MonoBehaviour
         return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
     }
 
+    // Kunci hanya sumbu Y: tong tegak lurus lantai dan mulut menghadap kamera AR.
     private Quaternion GetFacingRotation(Vector3 binPosition)
     {
-        if (arCamera == null)
+        Transform viewCamera = Camera.main != null ? Camera.main.transform : arCamera;
+
+        if (viewCamera == null)
         {
             return Quaternion.identity;
         }
 
-        Vector3 direction = arCamera.position - binPosition;
-        direction.y = 0f;
+        Vector3 lookPos = viewCamera.position - binPosition;
+        lookPos.y = 0f;
 
-        if (direction.sqrMagnitude < 0.0001f)
+        if (lookPos.sqrMagnitude < 0.0001f)
         {
-            direction = -GetCameraForward();
+            lookPos = -GetCameraForward();
         }
 
-        return Quaternion.LookRotation(direction.normalized, Vector3.up);
+        return Quaternion.LookRotation(lookPos.normalized, Vector3.up);
     }
 
     private void ResolveReferences()
